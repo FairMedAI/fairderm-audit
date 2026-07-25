@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+fairderm_env/
+
+# Data (large files — do not commit)
+data/
+ddidiversedermatologyimages/
+ddidiversedermatologyimages.zip
+dataverse_files.zip
+
+# Model checkpoints (large binary files)
+models/*.pth
+
+# Results (generated at runtime)
+results/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+
+# LaTeX build files
+*.aux
+*.log
+*.bbl
+*.blg
+*.out
+*.toc
+*.synctex.gz
+paper_latex/main.pdf

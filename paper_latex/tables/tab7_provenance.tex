@@ -1,0 +1,20 @@
+\begin{table}[htbp]
+\centering
+\small
+\caption{Metrics provenance: source files and method for each reported value.}
+\label{tab:provenance}
+\begin{tabular}{p{3.5cm}p{4cm}p{2.5cm}p{3cm}}
+\toprule
+\textbf{Metric} & \textbf{Source File} & \textbf{Method} & \textbf{Hardcoded?} \\
+\midrule
+Overall test AUROC/Sens/Spec/F1 & \texttt{results/metrics\_seed42.json} & Programmatic & No \\
+Subgroup AUROC/Sens/Spec/PPV & \texttt{results/metrics\_seed42.json} & Programmatic & No \\
+Bootstrap 95\% CIs & \texttt{results/metrics\_seed42.json} & 1000-iteration bootstrap & No \\
+p-value (Dark improvement) & \texttt{results/metrics\_seed42.json} & Bootstrap permutation & No \\
+Ablation overall + subgroup & \texttt{results/ablation/ablation\_report.csv} & Programmatic & No \\
+Val AUROCs & \texttt{results/*/config.json} & Programmatic & No \\
+Thresholds & \texttt{results/metrics\_seed42.json} & Youden's J (val set) & No \\
+Split disjointness & \texttt{splits/ddi\_split\_seed42.json} & Assertion check & No \\
+\bottomrule
+\end{tabular}
+\end{table}

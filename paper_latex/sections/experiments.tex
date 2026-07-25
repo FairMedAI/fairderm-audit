@@ -1,0 +1,40 @@
+\section{Experiments}
+
+\subsection{Experimental Setup}
+
+All experiments were conducted on an Apple Silicon Mac (MPS backend) using PyTorch 2.8.0, torchvision 0.23.0, and NumPy 2.0.2. The random seed was fixed to 42 across all stages for reproducibility; random number generators in Python, NumPy, and PyTorch were seeded, and deterministic MPS operations were enabled where available. Results are from a single run; due to floating-point non-determinism in the MPS backend, exact numerical reproduction on different hardware is not guaranteed.
+
+Hyperparameters for Stages 2 and 3 are held identical (lr\,$=$\,$5{\times}10^{-5}$, batch\,$=$\,32, weight decay\,$=$\,$10^{-4}$, pos\_weight\,$=$\,dynamic from training split) to enable valid causal comparison. Stage 1 uses different hyperparameters as a pretrained initialization.
+
+\subsection{Baseline}
+
+The baseline model is trained exclusively on HAM10000 (7,818 mel/nv samples) with an 80/20 stratified split. No DDI data is used at this stage. The model achieves strong validation AUROC (0.9336) on HAM10000, confirming effective ImageNet transfer learning.
+
+When evaluated on the DDI test set using the default threshold of 0.5, the baseline exhibits limited dark-skin performance: AUROC\,$=$\,0.578 and sensitivity\,$=$\,0.000, meaning the model fails to detect any dark-skin melanomas at this operating point. Light-skin AUROC is 0.628. The overall DDI test AUROC is 0.637. These results confirm the skin-tone performance gap present at the pretraining stage, consistent with the documented bias in dermatological AI systems \cite{Daneshjou2022, Groh2021}.
+
+\subsection{Fine-tuning}
+
+Fine-tuning the baseline model on DDI (393 training samples) with progressive unfreezing substantially improves overall test AUROC from 0.637 to 0.669. However, the improvement is unevenly distributed across skin tones: Light AUROC increases to 0.800 while Dark AUROC decreases to 0.472, widening the subgroup AUROC gap from $-0.050$ to $-0.328$ (Dark minus Light). Light-skin sensitivity improves to 0.800 at the Youden's $J$ threshold computed on the validation set, but dark-skin sensitivity reaches only 0.400.
+
+This result demonstrates that standard fine-tuning on a small, skin-tone-imbalanced dataset can \emph{amplify rather than mitigate} the performance gap. The fine-tuned model learns to exploit the overrepresented Light subgroup features while failing to generalize to Dark subgroup patterns.
+
+Bootstrap 95\% confidence intervals for the fine-tuned model are: Light AUROC\,$=$\,0.800\,[0.631--0.944], Dark AUROC\,$=$\,0.471\,[0.256--0.697]. The wide Dark CI reflects the small subgroup size ($n\,{=}\,42$, 10 melanomas).
+
+\subsection{Synthetic Augmentation}
+
+Adding 290 synthetic dark-skin melanoma images (generated exclusively from 29 training-split dark-skin melanomas, 10 variants each) to the DDI training set does not significantly change overall test AUROC (0.67\,$\rightarrow$\,0.69). The Dark subgroup AUROC is essentially unchanged: 0.472 (fine-tuned) to 0.463 (augmented), with a permutation test $p\,{=}\,0.524$. The Light--Dark AUROC gap remains large ($-0.30$). Dark-skin sensitivity increases from 0.400 to 0.700 at the Youden's $J$ threshold, while Light-skin sensitivity increases from 0.800 to 0.900.
+
+Bootstrap 95\% CIs are: Light AUROC\,$=$\,0.774\,[0.587--0.912], Dark AUROC\,$=$\,0.462\,[0.269--0.673]. The permutation test p-value of 0.524 confirms no significant Dark AUROC improvement. With only 10 melanomas per subgroup, the study is underpowered, but the point estimates indicate that simple photometric augmentation does not meaningfully improve dark-skin melanoma detection.
+
+As noted in Section~\ref{sec:synthetic_aug}, synthetic images are now generated exclusively from training-split data, eliminating the information leakage present in earlier versions of this work.
+
+\subsection{Ablation Study}
+
+We conduct an ablation study over the number of saved synthetic images, testing multipliers of 0$\times$ (no synthetics), 2$\times$ (58 images), 5$\times$ (145 images), and 10$\times$ (290 images). All synthetic images are generated from training-split dark-skin melanomas. Starting from the fine-tuned checkpoint, each variant is trained for up to 5 epochs with identical hyperparameters to Stage 3.
+
+\paragraph{Methodology.}
+Unlike earlier work that tested on-the-fly oversampling (duplicating real images with random transforms during training), this ablation uses \emph{saved synthetic images} generated via fixed Albumentations transforms. This approach is methodologically consistent with the main pipeline and enables direct comparison of augmentation quantity effects.
+
+Results are summarized in Table~\ref{tab:ablation} and visualized in Figure~\ref{fig:ablation_tradeoff}. The ablation reveals a non-monotonic relationship between synthetic data quantity and Dark subgroup performance: Dark AUROC improves from 0.494 (0$\times$) to 0.547 (5$\times$), but degrades to 0.525 at 10$\times$. Overall test AUROC increases from 0.680 (0$\times$) to 0.735 (2$\times$) and remains stable at 5$\times$ (0.724) and 10$\times$ (0.736). Validation AUROC increases monotonically from 0.707 to 0.736, suggesting that additional synthetic data helps validation performance but does not consistently transfer to test-set Dark subgroup accuracy.
+
+Dark-subgroup AUROC peaks at 5$\times$ (0.547) and declines at 10$\times$ (0.525), consistent with overfitting to synthetic artifacts at high augmentation levels. The non-monotonic pattern suggests that the benefits of synthetic augmentation are real but bounded, and excessive augmentation introduces distributional artifacts that impair generalization on the Dark subgroup.

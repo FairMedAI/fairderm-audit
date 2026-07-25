@@ -1,0 +1,51 @@
+\section{Limitations}
+
+We identify thirteen limitations of this study, organized by severity. Collectively, these limitations indicate that the reported results are directional, not definitive, and should be interpreted with appropriate caution.
+
+\subsection{High Severity}
+
+\begin{enumerate}
+    \item \textbf{Small DDI test subgroup ($n=42$, 10 melanomas).} The Dark subgroup test set contains only 42 images, of which 10 are melanoma-positive. This small sample size yields wide bootstrap confidence intervals (e.g., Dark AUROC $[0.269,\; 0.673]$), severely limiting statistical power and the precision of point estimates. The permutation test p-value of 0.524 confirms that synthetic augmentation did not significantly improve Dark AUROC. Subgroup conclusions should be treated as preliminary and require validation on larger cohorts.
+\end{enumerate}
+
+\subsection{Medium Severity}
+
+\begin{enumerate}
+    \setcounter{enumi}{1}
+    \item \textbf{No external validation.} All experiments use a single dataset (DDI) for fine-tuning and evaluation. The generalizability of findings to other datasets, clinical settings, and populations is unknown. External validation on independent datasets is required before any clinical deployment claims.
+
+    \item \textbf{Ablation tested saved-image quantity, not augmentation technique.} The ablation study varied the number of saved synthetic images (58, 145, 290) rather than comparing different augmentation techniques. The observed 10$\times$ degradation demonstrates a ceiling on synthetic data quantity but does not isolate the contribution of specific augmentation transforms.
+
+    \item \textbf{No synthetic image quality validation (no FID).} Synthetic dermoscopy images were not evaluated for visual or distributional quality using standard metrics such as Fr\'echet Inception Distance (FID). Without such validation, it is impossible to determine whether the synthetic images contain realistic clinical features or introduce distributional artifacts that could confound model learning.
+
+    \item \textbf{Sensitivity--specificity tradeoff across subgroups.} Light subgroup sensitivity decreased from 0.80 to 0.50 with augmentation, while Dark sensitivity improved. This tradeoff means the augmented model may not meet minimum sensitivity thresholds for all subgroups simultaneously, limiting deployment applicability.
+\end{enumerate}
+
+\subsection{Low Severity}
+
+\begin{enumerate}
+    \setcounter{enumi}{6}
+    \item \textbf{Medium skin tone subgroup excluded.} The DDI dataset includes images across the Fitzpatrick scale, but the medium skin tone subgroup was excluded from per-subgroup analysis due to insufficient sample size. This exclusion limits the generalizability of findings to the full spectrum of skin tones.
+
+    \item \textbf{MPS device non-determinism.} All experiments were conducted on Apple Silicon (MPS backend). The MPS backend introduces non-deterministic behavior in certain operations, which may contribute to minor variation across runs. Results should be replicated on CUDA-based hardware for confirmation.
+
+    \item \textbf{Dynamic pos\_weight may differ across runs.} Pos\_weight is computed dynamically from the training split as $n_{\text{neg}}/n_{\text{pos}}$. While this is more principled than a hardcoded value, it means the exact pos\_weight depends on the split, which is seed-dependent. The split and pos\_weight are saved for reproducibility.
+
+    \item \textbf{Single random seed.} All experiments use seed 42. While this ensures internal reproducibility, results from a single seed may not capture the full variance of the training process. Multi-seed evaluation would provide more robust estimates.
+
+    \item \textbf{Ablation figure Y-axis was initially mislabeled (corrected).} The ablation tradeoff figure was initially generated with incorrect axis labels during development. This error was identified and corrected. All figures in the manuscript have been regenerated and verified from \texttt{results/metrics\_seed42.json}.
+
+    \item \textbf{Synthetic images use simple transforms.} The augmentation pipeline uses standard photometric and geometric transforms. More sophisticated approaches (e.g., diffusion models, GANs) may produce higher-quality synthetic images with better clinical realism, though at greater computational cost.
+
+    \item \textbf{Bootstrap CI centers may not exactly match point estimates.} The bootstrap confidence interval centers do not exactly correspond to the reported point estimates, reflecting the asymmetric sampling distribution inherent in small subgroups. This is a known property of bootstrap methods and should be noted when interpreting CIs.
+
+    \item \textbf{Synthetic images generated from only 29 source images.} With only 29 training dark-skin melanomas, the diversity of generated synthetics is limited by the source distribution. More source images would enable greater variation in the synthetic set.
+\end{enumerate}
+
+\subsection{Fixed Issues}
+
+The following issues from earlier versions have been addressed:
+
+\begin{enumerate}
+    \item \textbf{Synthetic images derived from training split only.} Synthetic augmentation images are now generated exclusively from training-split dark-skin melanoma images ($n\,{=}\,29$). No validation or test set images are used as sources. A leakage check script (\texttt{scripts/check\_leakage.py}) verifies that no synthetic image stem matches any held-out image stem. This issue is resolved.
+\end{enumerate}

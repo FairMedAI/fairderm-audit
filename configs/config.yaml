@@ -1,0 +1,75 @@
+# FairDerm — Single source of truth for hyperparameters
+# Stage 2 and Stage 3 MUST share identical hyperparams except dataset.
+# This is required for valid causal comparison (ISEF publication).
+
+seed: 42
+img_size: 224
+model: EfficientNet-B0
+optimizer: AdamW
+weight_decay: 1e-4
+
+stage1:
+  description: "HAM10000 baseline — different hyperparams are OK here"
+  lr: 3e-4
+  epochs: 10
+  batch_size: 8
+  pos_weight: null   # no class weighting for baseline
+  patience: 3
+
+stage2:
+  description: "DDI fine-tuning — IDENTICAL hyperparams to stage3"
+  lr: 5e-5
+  epochs: 10
+  batch_size: 32
+  pos_weight: dynamic  # calculated from train split as n_neg/n_pos
+  patience: 3
+  freeze_layers:
+    - features.6
+    - features.7
+    - classifier
+
+stage3:
+  description: "Synthetic augmentation — IDENTICAL hyperparams to stage2"
+  lr: 5e-5            # SAME as stage2
+  epochs: 5           # fewer epochs is OK (dataset is larger)
+  batch_size: 32      # SAME as stage2
+  pos_weight: dynamic  # SAME calculation from train split
+  patience: 3
+  freeze_layers:
+    - features.6
+    - features.7
+    - classifier
+
+ablation:
+  description: "Multiplier sweep using saved synthetics from train-only"
+  epochs: 5
+  batch_size: 32
+  lr: 5e-5
+  pos_weight: dynamic
+  multipliers: [0, 2, 5, 10]
+  patience: 3
+  source: "data/synthetic_train_only"
+
+synthetic:
+  output_dir: "data/synthetic_train_only"
+  variants_per_image: 10
+  transforms:
+    RandomBrightnessContrast:
+      brightness_limit: 0.2
+      contrast_limit: 0.2
+      p: 0.8
+    HueSaturationValue:
+      hue_shift_limit: 10
+      sat_shift_limit: 20
+      val_shift_limit: 15
+      p: 0.7
+    GaussNoise:
+      p: 0.2
+    ElasticTransform:
+      alpha: 0.5
+      sigma: 5
+      p: 0.1
+    RandomRotate90:
+      p: 0.5
+    HorizontalFlip:
+      p: 0.5

@@ -1,0 +1,58 @@
+\section{Methods}
+
+\subsection{Dataset}
+
+We use two dermatoscopic image datasets. The HAM10000 dataset \cite{Tschandl2018} contains 10,015 dermatoscopic images from diverse populations, annotated with seven diagnostic categories. For binary melanoma classification, we retain only melanocytic lesions: 7,818 samples comprising melanoma (\emph{mel}) and melanocytic nevus (\emph{nv}) classes, yielding a malignant--benign ratio of approximately 14:86. No skin tone labels are available in HAM10000.
+
+The Dermatology Data Initiative (DDI) dataset provides 656 dermatoscopic images with Fitzpatrick skin type annotations \cite{Fitzpatrick1988}. Each image is assigned a numeric skin tone code: 12 (Light, Fitzpatrick I--II), 34 (Medium, Fitzpatrick III--IV), or 56 (Dark, Fitzpatrick V--VI). Only Light and Dark subgroups are reported, as the Medium subgroup ($n \approx 16$ in the test set) is too small for reliable metric estimation.
+
+DDI is split into train/validation/test partitions using a 60/20/20 ratio, stratified by the cross-product of label $\times$ skin tone to preserve class balance across subgroups. The split is saved to \texttt{splits/ddi\_split\_seed42.json} for reproducibility. The resulting partition sizes are: Train\,$=$\,393, Validation\,$=$\,131, Test\,$=$\,132. The test set contains 42 Light samples (10 melanoma) and 42 Dark samples (10 melanoma). Split disjointness is enforced via assertion checks on filenames, and a leakage check script (\texttt{scripts/check\_leakage.py}) verifies that no synthetic image stem matches any test image stem. Dataset composition is summarized in Table~\ref{tab:dataset}.
+
+\subsection{Model Architecture}
+
+We use EfficientNet-B0 \cite{Raghu2019} as the backbone architecture, with the final classifier layer replaced by a single-output linear layer for binary melanoma classification. The model contains 4,008,829 trainable parameters. Weights are initialized from ImageNet pretraining. Input images are resized to $224 \times 224$ and normalized using ImageNet channel-wise mean and standard deviation (mean\,$=$\,$[0.485, 0.456, 0.406]$, std\,$=$\,$[0.229, 0.224, 0.225]$).
+
+Transfer learning follows a progressive unfreezing strategy. During the fine-tuning and augmentation stages, early convolutional feature extractor layers are frozen, and only the final two feature blocks (\texttt{features.6}, \texttt{features.7}) and the classifier head are trained. This reduces the number of trainable parameters relative to full fine-tuning while allowing the model to adapt high-level representations to the target domain.
+
+\subsection{Training Pipeline}
+
+The pipeline consists of three sequential stages, each initializing from the preceding stage's checkpoint. Hyperparameters for Stages 2 and 3 are held identical for valid causal comparison; Stage 1 uses different hyperparameters as a baseline. Hyperparameters are summarized in Table~\ref{tab:training_config}.
+
+\paragraph{Stage 1: Baseline.}
+The model is trained on the full HAM10000 mel/nv subset (80/20 stratified split) for up to 10 epochs with early stopping (patience\,$=$\,3). The binary cross-entropy loss \texttt{BCEWithLogitsLoss} is used with no class weighting. The optimizer is AdamW with learning rate $3 \times 10^{-4}$ and weight decay $10^{-4}$. A \texttt{ReduceLROnPlateau} scheduler (factor\,$=$\,0.5, patience\,$=$\,2) monitors validation AUROC. This stage uses different hyperparameters from Stages 2--3, which is acceptable as it serves only as a pretrained initialization.
+
+\paragraph{Stage 2: Fine-tuning.}
+The baseline checkpoint is loaded, feature extractor layers are frozen as described above, and the model is fine-tuned on the DDI training partition for up to 10 epochs with early stopping (patience\,$=$\,3). The malignant--benign class imbalance in DDI is addressed by computing \texttt{pos\_weight} dynamically from the training split as $n_{\text{neg}} / n_{\text{pos}}$. The optimizer is AdamW with learning rate $5 \times 10^{-5}$ and weight decay $10^{-4}$, applied only to unfrozen parameters. Batch size is 32.
+
+\paragraph{Stage 3: Synthetic Augmentation.}
+The fine-tuned checkpoint is loaded with the same frozen-layer configuration. The DDI training set is augmented with synthetic dark-skin melanoma images (described in Section~\ref{sec:synthetic_aug}) and trained for up to 5 epochs (patience\,$=$\,3). All hyperparameters are identical to Stage 2: learning rate $5 \times 10^{-5}$, weight decay $10^{-4}$, batch size 32, and the same dynamic \texttt{pos\_weight} computed from the original training split. The only difference between Stage 2 and Stage 3 is the addition of synthetic training images, enabling a valid causal comparison.
+
+\paragraph{Hyperparameter standardization.}
+Stages 2 and 3 share identical learning rate, weight decay, batch size, and pos\_weight. This is explicitly required for publication: any performance difference between these stages can be attributed solely to the synthetic augmentation intervention, not to hyperparameter variation. Stage 1 differs in learning rate and batch size, but this is acceptable as it serves only as a pretrained initialization for the DDI stages.
+
+\subsection{Synthetic Augmentation}
+\label{sec:synthetic_aug}
+
+Synthetic images are generated using the Albumentations library \cite{Buslaev2020}, which provides optimized implementations of standard image augmentation transforms. From the dark-skin melanoma examples in the DDI \emph{training split} ($n\,{=}\,29$), each source image is transformed 10 times, yielding 290 synthetic images. Synthetic images are generated exclusively from training-split data and are never derived from validation or test set images.
+
+The augmentation pipeline applies the following transforms in sequence:
+\begin{enumerate}
+    \item \textbf{RandomBrightnessContrast}: brightness and contrast variation ($\pm 0.2$ range, probability\,$=$\,0.8)
+    \item \textbf{HueSaturationValue}: hue shift ($\pm 10$), saturation shift ($\pm 20$), value shift ($\pm 15$), probability\,$=$\,0.7
+    \item \textbf{GaussNoise}: additive Gaussian noise, probability\,$=$\,0.2
+    \item \textbf{ElasticTransform}: smooth geometric deformation ($\alpha\,{=}\,0.5$, $\sigma\,{=}\,5$), probability\,$=$\,0.1
+    \item \textbf{RandomRotate90}: 90$^\circ$ rotation multiples, probability\,$=$\,0.5
+    \item \textbf{HorizontalFlip}: mirror reflection, probability\,$=$\,0.5
+\end{enumerate}
+
+All outputs are resized to $224 \times 224$ and saved as JPEG files. Synthetic images are added to the DDI training set via \texttt{ConcatDataset}, increasing the effective training size from 393 to approximately 683 samples. Synthetic images are never added to validation or test partitions. The split file and a leakage check script (\texttt{scripts/check\_leakage.py}) are used to verify that no synthetic image stem matches any held-out image stem.
+
+\subsection{Evaluation}
+
+The primary metric is the Area Under the Receiver Operating Characteristic curve (AUROC) \cite{Hanley1982}, which is threshold-independent and thus suitable for comparing models at different operating points. Secondary threshold-dependent metrics---sensitivity, specificity, positive predictive value (PPV), and F1 score---are also reported.
+
+Classification thresholds are determined as follows: the baseline uses the default 0.5; the fine-tuned and augmented models each use Youden's $J$ statistic (maximizing $\text{TPR} - \text{FPR}$) computed on their respective validation sets. Because thresholds differ per stage, sensitivity and specificity are not directly comparable across stages. AUROC remains the primary basis for cross-stage comparison. A footnote in all tables notes: ``thresholds differ per stage, AUROC is the primary comparison metric.''
+
+For uncertainty quantification, bootstrap 95\% confidence intervals are computed using 1{,}000 resampling iterations with the percentile method \cite{Efron1986}. Iterations that produce degenerate samples (single-class bootstrap draws) are discarded. Bootstrap analysis uses a fixed random seed (seed\,$=$\,0) for the random number generator. A permutation-based p-value is computed for the Dark AUROC improvement between Stages 2 and 3: the proportion of bootstrap AUROC differences $\leq 0$ across 1{,}000 paired resamples.
+
+Subgroup analysis is performed by stratifying predictions according to Fitzpatrick skin type codes: Light (code 12, Fitzpatrick I--II) and Dark (code 56, Fitzpatrick V--VI). Medium skin tone (code 34, Fitzpatrick III--IV) is excluded due to insufficient test-set sample size. Results are reported separately for each subgroup to enable fairness evaluation. Due to the small subgroup sizes ($n\,{=}\,42$ per subgroup, 10 melanomas), all subgroup conclusions should be treated as preliminary and directional.

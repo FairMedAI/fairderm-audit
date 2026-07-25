@@ -1,0 +1,31 @@
+\section{Appendix}
+
+\subsection{Reproducibility Checklist}
+
+All experiments were conducted under the following conditions to facilitate reproducibility:
+
+\begin{itemize}
+    \item \textbf{Random seed:} A fixed random seed (42) was set at the start of each training run to ensure deterministic initialization of model weights, data loaders, and augmentation pipelines. The seed value is recorded in \texttt{configs/config.yaml} and \texttt{results/metrics\_seed42.json}.
+    \item \textbf{Device:} All experiments were executed on Apple Silicon using the MPS (Metal Performance Shaders) backend. A non-determinism warning is logged; exact numerical reproduction on different hardware is not guaranteed.
+    \item \textbf{Software environment:} The Python version, PyTorch version, and all dependency versions are pinned in \texttt{requirements.txt}. Exact versions: PyTorch 2.8.0, torchvision 0.23.0, numpy 2.0.2.
+    \item \textbf{Checkpoint saving:} Model checkpoints were saved at the end of each training epoch and at validation-based best-model selection. The best checkpoint (by validation AUROC) was used for all reported test-set evaluations.
+    \item \textbf{Data partitioning:} The DDI dataset was split into training, validation, and test sets using a stratified 60/20/20 split saved to \texttt{splits/ddi\_split\_seed42.json}. Split disjointness is enforced via assertions.
+    \item \textbf{Leakage verification:} The script \texttt{scripts/check\_leakage.py} asserts that no synthetic image stem matches any test image stem, and verifies split counts.
+    \item \textbf{Metrics provenance:} All metrics, bootstrap CIs, and p-values are saved to \texttt{results/metrics\_seed42.json}. Tables and figures are auto-generated from this JSON file. No manual transcription from terminal output.
+    \item \textbf{Hyperparameter standardization:} Stages 2 and 3 share identical hyperparameters (lr, batch size, pos\_weight, weight decay) to enable valid causal comparison. Configuration is in \texttt{configs/config.yaml}.
+\end{itemize}
+
+\subsection{Metrics Provenance}
+
+Table~\ref{tab:provenance} documents the provenance of all reported metrics. All values are read programmatically from \texttt{results/metrics\_seed42.json}; no manual transcription from terminal output.
+
+\subsection{Training Configuration Details}
+
+Table~\ref{tab:training_config} provides the complete training configuration for each model stage. Stages 2 and 3 share identical hyperparameters; the only difference is the dataset (DDI train vs DDI train + synthetic).
+
+\subsection{Additional Figures}
+
+\begin{itemize}
+    \item \textbf{Real vs.\ synthetic comparison} (\texttt{fig\_real\_vs\_synthetic.pdf}): Side-by-side visualization of 3 real dark-skin melanoma images from the training set and 3 synthetic variants, demonstrating augmentation quality.
+    \item \textbf{Supplementary ROC progression} (\texttt{supp\_roc\_progression.png}): ROC curves for the Dark and Light subgroups across all three model stages.
+\end{itemize}

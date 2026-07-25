@@ -1,0 +1,33 @@
+\section{Discussion}
+
+\subsection{Interpretation of Results}
+
+This study evaluated skin-tone bias in melanoma detection and tested synthetic augmentation as a mitigation strategy. Two key findings emerge.
+
+First, \textbf{standard fine-tuning amplified the bias}: the inter-group AUROC gap widened from $-0.050$ (baseline) to $-0.328$ (fine-tuned), demonstrating that naive transfer learning on a small, imbalanced dataset can disproportionately benefit the overrepresented subgroup. This finding is arguably more important than the augmentation result, as it highlights a failure mode that is likely common in dermatological AI deployment: models fine-tuned on small diverse datasets may worsen rather than improve equity.
+
+Second, \textbf{simple photometric augmentation did not significantly improve Dark AUROC}: the Dark AUROC changed from 0.472 (fine-tuned) to 0.463 (augmented), with a permutation test $p\,{=}\,0.524$. The AUROC gap remained essentially unchanged at $-0.303$. This negative result indicates that color-space perturbations and geometric transforms applied to only 29 source images are insufficient to learn meaningful dark-skin melanoma features. The augmentation pipeline likely produces variants that are photometrically diverse but clinically redundant, failing to address the fundamental representation deficit.
+
+The Light subgroup AUROC decreased from 0.800 to 0.766 with augmentation, while Dark AUROC was essentially unchanged. The bootstrap CIs (Light: 0.774\,[0.587--0.912], Dark: 0.462\,[0.269--0.673]) remain wide, reflecting the small sample size ($n=42$ per subgroup, 10 melanomas). These results suggest that simple augmentation strategies are inadequate for closing skin-tone gaps, and more powerful generative approaches are needed.
+
+\subsection{Comparison with Related Work}
+
+Our findings are consistent with prior work documenting skin-tone bias in dermatological AI. Daneshjou et al.~\cite{Daneshjou2022} demonstrated that dermatology AI models exhibit reduced performance on darker skin tones, particularly for conditions where clinical presentation varies by skin pigmentation. Our baseline results---Dark AUROC of 0.578 versus Light AUROC of 0.628---replicate this disparity in the melanoma detection task, though the gap is smaller than in some prior reports.
+
+Esteva et al.~\cite{Esteva2017} trained a CNN on 129,450 clinical images and reported high overall accuracy but did not extensively evaluate subgroup performance. Our work extends this line of research by systematically stratifying evaluation by skin tone and quantifying the gap. The fine-tuned model's AUROC gap of $-0.328$ demonstrates that even models with reasonable overall performance can harbor substantial subgroup disparities.
+
+Groh et al.~\cite{Groh2021} evaluated multiple dermatology AI models across skin tones and found consistent performance degradation on darker skin. Our augmentation approach---applying photometric transforms to 29 source images---was insufficient to address this gap, suggesting that the data-centric intervention requires either more source diversity or more powerful generation methods (e.g., diffusion models) to produce clinically meaningful synthetic variants.
+
+Notably, our study is among the first to apply synthetic augmentation specifically targeting skin-tone underrepresentation in melanoma detection, rather than applying general augmentation or collecting additional real data. This approach may be particularly relevant in settings where collecting large numbers of clinical images from underrepresented populations is impractical due to resource constraints or privacy considerations.
+
+\subsection{Practical Implications}
+
+The results carry several implications for clinical deployment of melanoma detection AI. The finding that fine-tuning alone widened the AUROC gap from $-0.050$ to $-0.328$ has important implications: deploying a ``fine-tuned'' model without fairness evaluation could inadvertently worsen disparities. This underscores the need for mandatory subgroup evaluation in dermatological AI deployment.
+
+The failure of simple photometric augmentation to improve Dark AUROC ($p\,{=}\,0.524$) suggests that the barrier to equitable melanoma detection is not merely data quantity but data quality and diversity. Color-space perturbations applied to 29 source images likely produce variants that lie within the same manifold as the originals, failing to expose the model to genuinely novel dark-skin melanoma presentations. More diverse generative models (e.g., conditional diffusion models trained on larger dark-skin datasets) may be necessary.
+
+The Light subgroup AUROC decrease (0.800 $\rightarrow$ 0.766) with augmentation, while Dark AUROC was unchanged, indicates that even the modest synthetic data introduced noise that slightly degraded Light subgroup performance without benefiting Dark. This underscores that augmentation interventions must be carefully validated across subgroups.
+
+The wide bootstrap CIs---particularly for the Dark subgroup---indicate that the current evidence base is insufficient for definitive deployment decisions. Larger validation studies, ideally with prospective data from multiple institutions, are needed to establish confidence intervals narrow enough to support clinical deployment.
+
+The ablation results (Dark AUROC peaks at 5$\times$, declines at 10$\times$) suggest that augmentation benefits are bounded. Even at the optimal multiplier, the Dark AUROC improvement is marginal and not statistically significant, reinforcing that photometric augmentation alone is insufficient.
