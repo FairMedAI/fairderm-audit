@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""
-Check that no synthetic images leaked into the test set.
-Run after you generate splits and synthetic images.
-
-Usage:
-    python scripts/check_leakage.py
-"""
 
 import json
 import os
@@ -20,7 +13,6 @@ def check_leakage():
 
     errors = []
 
-    # 1. Check split file exists
     if not os.path.exists(split_path):
         errors.append(f"Split file not found: {split_path}")
         print("LEAKAGE CHECK FAILED")
@@ -35,7 +27,6 @@ def check_leakage():
     train_files = set(split["train"])
     val_files = set(split["val"])
 
-    # 2. Assert disjointness
     if not train_files.isdisjoint(val_files):
         errors.append("Train and val sets overlap!")
     if not train_files.isdisjoint(test_files):
@@ -43,7 +34,6 @@ def check_leakage():
     if not val_files.isdisjoint(test_files):
         errors.append("Val and test sets overlap!")
 
-    # 3. Check synthetic directory
     if os.path.exists(syn_dir):
         syn_files = [f for f in os.listdir(syn_dir)
                      if f.lower().endswith((".jpg", ".png", ".jpeg"))
@@ -71,7 +61,6 @@ def check_leakage():
         print(f"  WARNING: Synthetic directory not found: {syn_dir}")
         print("  (OK if synthetics not yet generated)")
 
-    # 4. Verify counts
     counts = split.get("counts", {})
     expected = {"train": 393, "val": 131, "test": 132}
     for key, expected_val in expected.items():
@@ -83,9 +72,7 @@ def check_leakage():
     if len(train_dark_mel) != 29:
         errors.append(f"Train dark mel count: expected 29, got {len(train_dark_mel)}")
 
-    # 5. Verify test subgroup sizes
     test_files_list = split["test"]
-    # We need the metadata to check skin tones; load it
     import pandas as pd
     meta_path = os.path.join(PROJECT_ROOT, "ddidiversedermatologyimages", "ddi_metadata.csv")
     if os.path.exists(meta_path):
@@ -106,7 +93,6 @@ def check_leakage():
         if len(dark_mel) != 10:
             errors.append(f"Test Dark melanoma count: expected 10, got {len(dark_mel)}")
 
-    # Report
     print()
     if errors:
         print("LEAKAGE CHECK FAILED")

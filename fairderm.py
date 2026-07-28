@@ -11,9 +11,6 @@ Local Mac-compatible version. Run individual stages via CLI:
     python fairderm.py --stage ablation     # 0x / 2x / 5x / 10x ablation study
 """
 
-# ============================================================
-# 1. Imports
-# ============================================================
 import os
 import sys
 import time
@@ -54,9 +51,6 @@ from tqdm import tqdm
 import albumentations as A
 import yaml
 
-# ============================================================
-# 2. Paths & Configuration
-# ============================================================
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 CONFIG = {
@@ -72,7 +66,7 @@ CONFIG = {
 
 
 def load_yaml_config():
-    """Load configs/config.yaml as single source of truth."""
+    """Load configs/config.yaml."""
     cfg_path = os.path.join(PROJECT_ROOT, "configs", "config.yaml")
     if os.path.exists(cfg_path):
         with open(cfg_path) as f:
@@ -83,9 +77,6 @@ def load_yaml_config():
 YAML_CFG = load_yaml_config()
 
 
-# ============================================================
-# 3. Device Selection  (MPS -> CUDA -> CPU)
-# ============================================================
 def get_device():
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return torch.device("mps")
@@ -96,9 +87,6 @@ def get_device():
 
 device = get_device()
 
-# ============================================================
-# 4. Reproducibility
-# ============================================================
 def set_seed(seed=42):
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
@@ -112,12 +100,7 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = False
 
 
-# ============================================================
-# 4b. Tee Logger — duplicate stdout to a log file
-# ============================================================
 class TeeLogger:
-    """Tees stdout to a log file."""
-
     def __init__(self, log_path):
         self.log_path = log_path
         self._file = None
@@ -152,7 +135,6 @@ class TeeLogger:
 
 
 def get_reproducibility_metadata():
-    """Collect environment info for experiment config."""
     meta = {
         "timestamp": __import__("datetime").datetime.now().isoformat(),
         "python_version": sys.version,
@@ -173,9 +155,6 @@ def get_reproducibility_metadata():
     return meta
 
 
-# ============================================================
-# 5. Transforms
-# ============================================================
 train_transform = transforms.Compose([
     transforms.Resize(CONFIG["IMG_SIZE"]),
     transforms.RandomHorizontalFlip(),
@@ -192,12 +171,7 @@ val_test_transform = transforms.Compose([
 ])
 
 
-# ============================================================
-# 6. Dataset Classes
-# ============================================================
 class DermDataset(Dataset):
-    """Unified dataset for DDI and HAM10000 dermatology images."""
-
     def __init__(self, df, img_dir, transform=None, is_ddi=False):
         self.df = df.reset_index(drop=True)
         self.img_dir = img_dir
@@ -225,8 +199,6 @@ class DermDataset(Dataset):
 
 
 class SyntheticDataset(Dataset):
-    """Dataset for synthetic dark-skin melanoma images."""
-
     def __init__(self, syn_dir):
         self.files = sorted([
             os.path.join(syn_dir, f)
@@ -249,20 +221,12 @@ class SyntheticDataset(Dataset):
         return self.tfm(img), torch.tensor(1.0, dtype=torch.float32), 56
 
 
-# ============================================================
-# 7. DataLoader Helper
-# ============================================================
 def setup_dataloaders(df, img_dir, transform, is_ddi=False, batch_size=8, shuffle=True):
-    """Create a DataLoader wrapping a DermDataset."""
     ds = DermDataset(df, img_dir, transform=transform, is_ddi=is_ddi)
     return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, num_workers=0)
 
 
-# ============================================================
-# 8. Model
-# ============================================================
 def create_model(model_name="efficientnet_b0", pretrained=True):
-    """EfficientNet-B0 with single-output head for binary classification."""
     if model_name == "efficientnet_b0":
         model = models.efficientnet_b0(weights="IMAGENET1K_V1" if pretrained else None)
         model.classifier[1] = nn.Linear(model.classifier[1].in_features, 1)
@@ -271,26 +235,14 @@ def create_model(model_name="efficientnet_b0", pretrained=True):
     return model.to(device)
 
 
-# ============================================================
-# 9. Training Loop  (with early stopping)
-# ============================================================
 def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler,
                 num_epochs=15, patience=4, save_path="model.pth",
                 dry_run=False, experiment_dir=None, resume=False):
-    """Train with early stopping and checkpoint saving.
-
-    Saves checkpoint at every improvement and at each epoch end with:
-        model_state_dict, optimizer_state_dict, scheduler_state_dict,
-        epoch, best_val_auc, history, config, seed.
-
-    Returns (model, history).
-    """
     best_val_auc = 0.0
     early_stop_count = 0
     history = []
     start_epoch = 0
 
-    # --- Dry run ---
     if dry_run:
         print("  [DRY RUN] Running 1 forward pass only (no training) ...")
         model.eval()
@@ -315,7 +267,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         print("  [DRY RUN] Skipping training loop.")
         return model, history
 
-    # --- Resume from last checkpoint ---
     if resume and experiment_dir:
         last_ckpt_path = os.path.join(experiment_dir, "last_checkpoint.pth")
         if os.path.exists(last_ckpt_path):
@@ -331,7 +282,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         else:
             print(f"  No checkpoint found at {last_ckpt_path} — starting fresh.")
 
-    # --- Training loop with crash handling ---
     try:
         for epoch in range(start_epoch, num_epochs):
             epoch_start = time.time()
@@ -375,7 +325,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
             else:
                 early_stop_count += 1
 
-            # Save last checkpoint every epoch
             if experiment_dir:
                 last_ckpt = {
                     "model_state_dict": model.state_dict(),
@@ -417,9 +366,6 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
     return model, history
 
 
-# ============================================================
-# 10. Evaluation Helpers
-# ============================================================
 def get_preds(model, loader, dev):
     model.eval()
     all_probs, all_labels, all_fsts = [], [], []
@@ -451,7 +397,6 @@ def compute_medical_metrics(y_true, y_prob, threshold=0.5):
 
 
 def compute_metrics(y_true, y_prob, threshold=0.5):
-    """Medical metrics plus F1."""
     metrics = compute_medical_metrics(y_true, y_prob, threshold)
     y_pred = (y_prob >= threshold).astype(int)
     _, _, f1, _ = precision_recall_fscore_support(
@@ -462,7 +407,6 @@ def compute_metrics(y_true, y_prob, threshold=0.5):
 
 
 def run_bootstrap_audit(y_true, y_prob, n_bootstrap=1000, seed=42):
-    """Medical metrics with 95% CIs via bootstrapping."""
     rng = np.random.RandomState(seed)
     stats = []
     for _ in range(n_bootstrap):
@@ -481,7 +425,6 @@ def run_bootstrap_audit(y_true, y_prob, n_bootstrap=1000, seed=42):
 
 
 def bootstrap_metrics(y_true, y_prob, n_bootstrap=1000):
-    """Metrics with 95% CIs including F1."""
     all_stats = []
     for _ in range(n_bootstrap):
         idx = np.random.choice(len(y_true), len(y_true), replace=True)
@@ -507,7 +450,6 @@ def bootstrap_metrics(y_true, y_prob, n_bootstrap=1000):
 
 
 def bootstrap_ci(y_true, y_score):
-    """Single AUROC with bootstrap 95% CI."""
     rng = np.random.default_rng(0)
     scores = []
     arr_true, arr_score = np.array(y_true), np.array(y_score)
@@ -521,7 +463,6 @@ def bootstrap_ci(y_true, y_score):
 
 
 def bootstrap_auroc(y_true, y_score, n=1000, seed=0):
-    """Bootstrap AUROC returning (median, lo, hi) as floats."""
     rng = np.random.default_rng(seed)
     aucs = []
     arr_true, arr_score = np.array(y_true), np.array(y_score)
@@ -535,7 +476,6 @@ def bootstrap_auroc(y_true, y_score, n=1000, seed=0):
 
 
 def compute_youden_threshold(y_true, y_prob):
-    """Compute optimal classification threshold using Youden's J statistic on validation set."""
     y_true = np.array(y_true)
     y_prob = np.array(y_prob)
     fpr, tpr, thresholds = roc_curve(y_true, y_prob)
@@ -545,7 +485,6 @@ def compute_youden_threshold(y_true, y_prob):
 
 
 def perform_fairness_analysis(y_true, y_prob, fsts, group_map=None):
-    """Per-group fairness audit with bootstrap CIs."""
     if group_map is None:
         groups = {12: "Light", 34: "Medium", 56: "Dark"}
     else:
@@ -561,9 +500,6 @@ def perform_fairness_analysis(y_true, y_prob, fsts, group_map=None):
 fairness_audit = perform_fairness_analysis
 
 
-# ============================================================
-# 11. Visualization Helpers
-# ============================================================
 def plot_reliability_curve(y_true, y_prob, label):
     prob_true, prob_pred = calibration_curve(y_true, y_prob, n_bins=10)
     plt.plot(prob_pred, prob_true, marker="o", label=label)
@@ -630,11 +566,7 @@ def evaluate_checkpoint(path, val_loader, group_map=None):
     return df
 
 
-# ============================================================
-# 12. Data Loading (local paths)
-# ============================================================
 def setup_ddi_data():
-    """Load DDI metadata. Searches ./data/ddi/ then ./ddidiversedermatologyimages/."""
     candidates = [
         os.path.join(PROJECT_ROOT, "data", "ddi"),
         os.path.join(PROJECT_ROOT, "ddidiversedermatologyimages"),
@@ -647,13 +579,11 @@ def setup_ddi_data():
             print(f"  DDI: loaded {len(df)} samples from {ddi_dir}")
             return df, ddi_dir
     raise FileNotFoundError(
-        "ddi_metadata.csv not found. Place DDI data in data/ddi/ "
-        "or the extracted ddidiversedermatologyimages/ folder in the project root."
+        "ddi_metadata.csv not found. Check data/ddi/ or ddidiversedermatologyimages/."
     )
 
 
 def _extract_ham10000(zip_path, target_dir):
-    """Extract HAM10000 from dataverse_files.zip (handles nested zips)."""
     print(f"  Extracting {zip_path} ...")
     temp_dir = os.path.join(target_dir, "_temp_extract")
     os.makedirs(temp_dir, exist_ok=True)
@@ -684,7 +614,6 @@ def _extract_ham10000(zip_path, target_dir):
 
 
 def setup_ham10000_data():
-    """Load HAM10000 from local files — never extracts automatically."""
     ham_dir = os.path.join(PROJECT_ROOT, "data", "ham10000")
     meta_path = os.path.join(ham_dir, "HAM10000_metadata.csv")
     img_dir = os.path.join(ham_dir, "images")
@@ -693,8 +622,7 @@ def setup_ham10000_data():
         raise FileNotFoundError(
             "HAM10000 data not found locally.\n"
             "  Expected: data/ham10000/HAM10000_metadata.csv\n"
-            "            data/ham10000/images/\n"
-            "  Run with --extract to extract from dataverse_files.zip"
+            "            data/ham10000/images/"
         )
 
     df = pd.read_csv(meta_path)
@@ -704,18 +632,11 @@ def setup_ham10000_data():
     return ham_df, img_dir
 
 
-# ============================================================
-# 13. Ablation Study
-# ============================================================
 def run_ablation_study(base_model_path, train_df, val_df, test_df, test_loader,
                        ddi_img_dir, syn_dir, multipliers=(0, 2, 5, 10),
                        dry_run=False, resume=False):
-    """Ablation study using saved synthetic images from train-only.
-    Tests multipliers: 0x (no synth), 2x, 5x, 10x.
-    Uses IDENTICAL hyperparams to stage 3 for valid comparison."""
     results_log = []
 
-    # Dynamic pos_weight from train split
     n_pos = int(train_df["label"].sum())
     n_neg = len(train_df) - n_pos
     pos_weight_val = n_neg / n_pos if n_pos > 0 else 1.0
@@ -783,12 +704,10 @@ def run_ablation_study(base_model_path, train_df, val_df, test_df, test_loader,
                 experiment_dir=m_dir, resume=resume,
             )
 
-        # Compute overall metrics
         probs, labels, fsts = get_preds(model, test_loader, device)
         overall = compute_metrics(labels, probs)
         overall["multiplier"] = m
 
-        # Compute subgroup metrics (Light and Dark)
         test_df_copy = test_df.copy()
         test_df_copy["pred"] = probs
         test_df_copy["group"] = test_df_copy["skin_tone"].map(DDI_GROUP_MAP)
@@ -800,7 +719,6 @@ def run_ablation_study(base_model_path, train_df, val_df, test_df, test_loader,
             else:
                 overall[f"{grp}_auroc"] = None
 
-        # Compute validation AUROC for this model
         val_probs, val_labels, _ = get_preds(model, val_loader_local, device)
         val_auroc = roc_auc_score(val_labels, val_probs) if len(np.unique(val_labels)) > 1 else 0.5
         overall["val_auroc"] = round(val_auroc, 4)
@@ -816,23 +734,16 @@ def run_ablation_study(base_model_path, train_df, val_df, test_df, test_loader,
         )
         save_experiment(m_dir, cfg, history, checkpoint_path=save_path, dry_run=dry_run)
 
-        # Cleanup symlink dir
         if syn_subset_dir and os.path.exists(syn_subset_dir):
             shutil.rmtree(syn_subset_dir, ignore_errors=True)
 
     return pd.DataFrame(results_log).set_index("multiplier")
 
 
-# ============================================================
-# 14. Pipeline Stages
-# ============================================================
-
 DDI_GROUP_MAP = {12: "Light", 34: "Medium", 56: "Dark"}
 
 
 def _make_splits(ddi_df):
-    """Return (train_df, val_df, test_df) with 60/20/20 stratified split.
-    Saves split to splits/ddi_split_seed42.json for reproducibility."""
     ddi_df = ddi_df.copy()
     ddi_df["stratify_key"] = ddi_df["label"].astype(str) + "_" + ddi_df["skin_tone"].astype(str)
     train_val_df, test_df = train_test_split(
@@ -846,7 +757,7 @@ def _make_splits(ddi_df):
     assert set(train_df["DDI_file"]).isdisjoint(set(test_df["DDI_file"]))
     assert set(val_df["DDI_file"]).isdisjoint(set(test_df["DDI_file"]))
 
-    # Save split to JSON for reproducibility
+    # Save split to JSON
     splits_dir = os.path.join(PROJECT_ROOT, "splits")
     os.makedirs(splits_dir, exist_ok=True)
     split_path = os.path.join(splits_dir, "ddi_split_seed42.json")
@@ -872,10 +783,9 @@ def _make_splits(ddi_df):
     return train_df, val_df, test_df
 
 
-# ---- Training summary & experiment logging -------------------------
+
 def print_training_summary(train_df, val_df, test_df=None, batch_size=8, lr=1e-4,
                            is_ddi=True, extra_info=None):
-    """Print dataset sizes, class balance, skin tone distribution, and device."""
     print("\n  Dataset:")
     print(f"    Train:      {len(train_df)} samples")
     print(f"    Validation: {len(val_df)} samples")
@@ -905,7 +815,6 @@ def print_training_summary(train_df, val_df, test_df=None, batch_size=8, lr=1e-4
 
 
 def build_experiment_config(stage_name, train_df, val_df, test_df=None, **kwargs):
-    """Build a config dict for saving to experiment directory."""
     cfg = {
         "stage": stage_name,
         "seed": CONFIG["SEED"],
@@ -922,7 +831,6 @@ def build_experiment_config(stage_name, train_df, val_df, test_df=None, **kwargs
 
 
 def save_experiment(experiment_dir, config_dict, history_rows, checkpoint_path=None, dry_run=False):
-    """Save config.json, training_history.csv, and optionally copy the checkpoint."""
     os.makedirs(experiment_dir, exist_ok=True)
 
     if history_rows:
@@ -955,7 +863,6 @@ def save_experiment(experiment_dir, config_dict, history_rows, checkpoint_path=N
     print(f"  Experiment saved to {experiment_dir}/")
 
 
-# ---- Stage: sanity ------------------------------------------------
 def stage_sanity():
     print("=" * 60)
     print("FAIRDERM — SANITY CHECK")
@@ -1021,7 +928,6 @@ def stage_sanity():
     print("=" * 60)
 
 
-# ---- Stage: baseline -----------------------------------------------
 def stage_baseline(dry_run=False, num_epochs=10, batch_size=8, resume=False):
     print("=" * 60)
     print("STAGE: HAM10000 BASELINE TRAINING")
@@ -1072,7 +978,6 @@ def stage_baseline(dry_run=False, num_epochs=10, batch_size=8, resume=False):
         print("\nHAM10000 baseline complete.")
 
 
-# ---- Stage: finetune -----------------------------------------------
 def stage_finetune(dry_run=False, num_epochs=10, batch_size=32, resume=False):
     print("=" * 60)
     print("STAGE: DDI FINE-TUNING")
@@ -1086,7 +991,6 @@ def stage_finetune(dry_run=False, num_epochs=10, batch_size=32, resume=False):
         ddi_df, ddi_img_dir = setup_ddi_data()
         train_df, val_df, test_df = _make_splits(ddi_df)
 
-        # Dynamic pos_weight from train split
         n_pos = int(train_df["label"].sum())
         n_neg = len(train_df) - n_pos
         pos_weight_val = n_neg / n_pos if n_pos > 0 else 1.0
@@ -1139,7 +1043,6 @@ def stage_finetune(dry_run=False, num_epochs=10, batch_size=32, resume=False):
         print("\nDDI fine-tuning complete.")
 
 
-# ---- Stage: augment ------------------------------------------------
 def stage_augment(dry_run=False, num_epochs=5, batch_size=32, resume=False):
     print("=" * 60)
     print("STAGE: SYNTHETIC AUGMENTATION")
@@ -1156,7 +1059,6 @@ def stage_augment(dry_run=False, num_epochs=5, batch_size=32, resume=False):
         syn_dir = os.path.join(CONFIG["DATA_DIR"], "synthetic_train_only")
         os.makedirs(syn_dir, exist_ok=True)
 
-        # FIX: only use train dark melanomas for synthetic generation
         dark_mel = train_df[(train_df["skin_tone"] == 56) & (train_df["malignant"] == 1)]
         print(f"  Found {len(dark_mel)} TRAIN dark-skin melanomas (source for synthetics)")
 
@@ -1187,7 +1089,6 @@ def stage_augment(dry_run=False, num_epochs=5, batch_size=32, resume=False):
         else:
             print(f"  Synthetic images already exist ({len(existing_syn)} files)")
 
-        # Dynamic pos_weight from train split (same as stage 2)
         n_pos = int(train_df["label"].sum())
         n_neg = len(train_df) - n_pos
         pos_weight_val = n_neg / n_pos if n_pos > 0 else 1.0
@@ -1244,7 +1145,6 @@ def stage_augment(dry_run=False, num_epochs=5, batch_size=32, resume=False):
         print("Synthetic augmentation complete.")
 
 
-# ---- Stage: evaluate -----------------------------------------------
 def stage_evaluate():
     print("=" * 60)
     print("STAGE: EVALUATION & FAIRNESS AUDIT")
@@ -1295,8 +1195,6 @@ def stage_evaluate():
             {"pred": t_probs, "label": t_labels, "fst": t_fsts}
         )
 
-    # Compute thresholds on VALIDATION set using Youden's J
-    # Stage 1: fixed 0.5; Stage 2 and 3: Youden's J on their respective val predictions
     thresholds = {}
     for name in ["baseline", "finetuned", "final"]:
         if name not in val_results:
@@ -1310,7 +1208,6 @@ def stage_evaluate():
             thresholds[name] = thr
             print(f"  {name}: threshold = {thr:.4f} (Youden's J on validation)")
 
-    # Bootstrap CIs for each stage's test subgroup metrics
     all_bootstrap = {}
     for name in ["finetuned", "final"]:
         if name not in test_results:
@@ -1326,7 +1223,6 @@ def stage_evaluate():
                 all_bootstrap[name][grp] = {"median": med, "lo": lo, "hi": hi}
                 print(f"    {grp} n={len(sub)} -> {med:.3f} [{lo:.3f}-{hi:.3f}]")
 
-    # Compute p-value for Dark AUROC improvement: finetuned -> final
     p_value_dark = None
     if "finetuned" in all_bootstrap and "final" in all_bootstrap:
         dark_ft = test_results["finetuned"].copy()
@@ -1351,7 +1247,6 @@ def stage_evaluate():
         p_value_dark = float(np.mean(np.array(diffs) <= 0))
         print(f"\n  p-value for Dark AUROC improvement (finetuned -> augment): {p_value_dark:.4f}")
 
-    # ROC progression plot (Dark subgroup)
     if len(test_results) >= 2:
         plt.figure(figsize=(8, 6))
         palette = {"baseline": "#d62728", "finetuned": "#2ca02c", "final": "#1f77b4"}
@@ -1376,7 +1271,6 @@ def stage_evaluate():
         plt.close()
         print(f"\n  Saved ROC progression -> {roc_path}")
 
-    # Build paper_data.json with per-stage subgroup metrics
     if "finetuned" in val_results and "final" in val_results:
         paper_data = {"stages": {}}
         stage_mapping = [
@@ -1400,7 +1294,6 @@ def stage_evaluate():
             json.dump(paper_data, f, indent=2)
         print(f"\n  Saved paper data -> {json_path}")
 
-        # Save comprehensive metrics_seed42.json
         n_pos = int(train_df["label"].sum())
         n_neg = len(train_df) - n_pos
         metrics_data = {
@@ -1429,7 +1322,6 @@ def stage_evaluate():
             "note": "AUROC is primary threshold-free metric. Sens/Spec reported at per-stage validation thresholds.",
         }
 
-        # Compute overall test metrics for each stage
         for key in ["baseline", "finetuned", "final"]:
             if key in test_results:
                 df = test_results[key]
@@ -1440,7 +1332,6 @@ def stage_evaluate():
                     "specificity": round(overall["Spec"], 4),
                     "f1": round(overall["F1"], 4),
                 }
-                # Bootstrap CI for overall AUROC
                 med, lo, hi = bootstrap_auroc(df["label"].values, df["pred"].values, n=1000, seed=0)
                 metrics_data["overall_test"][key]["auroc_ci"] = {"median": round(med, 4), "lo": round(lo, 4), "hi": round(hi, 4)}
 
@@ -1452,7 +1343,6 @@ def stage_evaluate():
     print("\nEvaluation complete.")
 
 
-# ---- Stage: ablation -----------------------------------------------
 def stage_ablation(dry_run=False, batch_size=32, resume=False):
     print("=" * 60)
     print("STAGE: ABLATION STUDY")
@@ -1498,18 +1388,15 @@ def stage_ablation(dry_run=False, batch_size=32, resume=False):
     print("\n--- Ablation Study Results ---")
     print(ablation_df.to_string())
 
-    # Plot: Test AUROC + Validation AUROC vs multiplier
     if "AUROC" in ablation_df.columns:
         plot_df = ablation_df.reset_index()
         fig, ax1 = plt.subplots(figsize=(10, 6))
         sns.set_style("whitegrid")
 
-        # Test AUROC bars
         x = np.arange(len(plot_df))
         width = 0.35
         ax1.bar(x - width/2, plot_df["AUROC"], width, label="Test AUROC",
                 color="#4C72B0", alpha=0.7, edgecolor="black", linewidth=0.5)
-        # Validation AUROC bars
         if "val_auroc" in plot_df.columns:
             ax1.bar(x + width/2, plot_df["val_auroc"], width, label="Validation AUROC",
                     color="#55A868", alpha=0.7, edgecolor="black", linewidth=0.5)
@@ -1521,7 +1408,6 @@ def stage_ablation(dry_run=False, batch_size=32, resume=False):
         ax1.set_xticklabels([f"{m}x" for m in plot_df["multiplier"]])
         ax1.legend(loc="lower left", fontsize=10)
 
-        # Dark AUROC line on secondary axis
         if "Dark_auroc" in plot_df.columns:
             ax2 = ax1.twinx()
             ax2.plot(x, plot_df["Dark_auroc"], "s--", color="#ED7D31", linewidth=2,
@@ -1542,9 +1428,6 @@ def stage_ablation(dry_run=False, batch_size=32, resume=False):
     print("\nAblation study complete.")
 
 
-# ============================================================
-# 15. CLI
-# ============================================================
 STAGES = {
     "sanity": stage_sanity,
     "baseline": stage_baseline,

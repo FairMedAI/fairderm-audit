@@ -1,20 +1,4 @@
 #!/usr/bin/env python3
-"""
-Generate publication-ready PDF figures from results/metrics_seed42.json.
-
-Reads from:
-  - results/metrics_seed42.json (canonical source)
-  - results/ablation/ablation_report.csv
-  - results/*/training_history.csv
-  - data/synthetic_train_only/ (for synthetic comparison figure)
-
-Outputs to:
-  - paper_latex/figures/*.pdf
-
-Usage:
-    python paper_latex/generate_figures.py
-"""
-
 import csv
 import json
 import os
@@ -77,7 +61,6 @@ def load_training_history(stage):
 
 
 def fig1_val_auroc_comparison(metrics):
-    """Bar chart: validation AUROC across pipeline stages."""
     val_aurocs = load_val_aurocs()
     labels = ["Baseline", "Fine-tuned", "+Synthetic"]
     keys = ["baseline", "finetune", "+synthetic"]
@@ -101,8 +84,6 @@ def fig1_val_auroc_comparison(metrics):
 
 
 def fig2_subgroup_auroc(metrics):
-    """Grouped bar chart: Light vs Dark AUROC across stages.
-    Light = Fitzpatrick I-II, Dark = Fitzpatrick V-VI."""
     stages = metrics["stages"]
     labels = ["Baseline", "Fine-tuned", "+Synthetic"]
     keys = ["baseline", "finetune", "final_synthetic"]
@@ -135,7 +116,6 @@ def fig2_subgroup_auroc(metrics):
 
 
 def fig3_sensitivity_gap(metrics):
-    """Line plot with markers: sensitivity gap across stages."""
     stages = metrics["stages"]
     labels = ["Baseline", "Fine-tuned", "+Synthetic"]
     keys = ["baseline", "finetune", "final_synthetic"]
@@ -167,7 +147,6 @@ def fig3_sensitivity_gap(metrics):
 
 
 def fig4_bootstrap_ci(metrics):
-    """Forest plot of AUROC bootstrap CIs with 95% CI error bars."""
     bootstrap = metrics.get("bootstrap_ci", {})
     fig, ax = plt.subplots(figsize=(7, 3.5))
 
@@ -209,7 +188,6 @@ def fig4_bootstrap_ci(metrics):
 
 
 def fig5_ablation(ablation_rows):
-    """Ablation trade-off: Validation AUROC + Test AUROC + Dark AUROC vs multiplier."""
     if not ablation_rows:
         print("  WARNING: No ablation data, skipping fig5")
         return
@@ -252,7 +230,6 @@ def fig5_ablation(ablation_rows):
 
 
 def fig6_training_curves():
-    """Training curves for all three main stages."""
     fig, axes = plt.subplots(1, 3, figsize=(14, 3.5), sharey=True)
     stage_configs = [
         ("Baseline", "baseline", "#4C72B0"),
@@ -280,7 +257,6 @@ def fig6_training_curves():
 
 
 def fig_real_vs_synthetic():
-    """Side-by-side comparison: 3 real dark mel vs 3 synthetic dark mel."""
     import cv2
 
     ddi_dir = os.path.join(ROOT, "ddidiversedermatologyimages")

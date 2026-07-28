@@ -1,7 +1,4 @@
-# FairDerm — Single source of truth for hyperparameters
-# Stage 2 and Stage 3 MUST share identical hyperparams except dataset.
-# This is required for valid causal comparison (ISEF publication).
-
+# FairDerm hyperparameters
 seed: 42
 img_size: 224
 model: EfficientNet-B0
@@ -9,7 +6,6 @@ optimizer: AdamW
 weight_decay: 1e-4
 
 stage1:
-  description: "HAM10000 baseline — different hyperparams are OK here"
   lr: 3e-4
   epochs: 10
   batch_size: 8
@@ -17,7 +13,6 @@ stage1:
   patience: 3
 
 stage2:
-  description: "DDI fine-tuning — IDENTICAL hyperparams to stage3"
   lr: 5e-5
   epochs: 10
   batch_size: 32
@@ -29,11 +24,10 @@ stage2:
     - classifier
 
 stage3:
-  description: "Synthetic augmentation — IDENTICAL hyperparams to stage2"
-  lr: 5e-5            # SAME as stage2
-  epochs: 5           # fewer epochs is OK (dataset is larger)
-  batch_size: 32      # SAME as stage2
-  pos_weight: dynamic  # SAME calculation from train split
+  lr: 5e-5
+  epochs: 5
+  batch_size: 32
+  pos_weight: dynamic
   patience: 3
   freeze_layers:
     - features.6
@@ -41,7 +35,6 @@ stage3:
     - classifier
 
 ablation:
-  description: "Multiplier sweep using saved synthetics from train-only"
   epochs: 5
   batch_size: 32
   lr: 5e-5

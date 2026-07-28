@@ -1,19 +1,4 @@
 #!/usr/bin/env python3
-"""
-Generate LaTeX table .tex files from results/metrics_seed42.json.
-
-Reads from:
-  - results/metrics_seed42.json (canonical source)
-  - results/ablation/ablation_report.csv
-  - results/*/config.json
-
-Outputs to:
-  - paper_latex/tables/*.tex
-
-Usage:
-    python paper_latex/generate_tables.py
-"""
-
 import csv
 import json
 import os
@@ -50,7 +35,6 @@ def load_config(stage):
 
 
 def write_table1_main_results(metrics):
-    """Table 1: Main results across pipeline stages."""
     stages = metrics["stages"]
     overall = metrics.get("overall_test", {})
     stage_order = [
@@ -59,7 +43,6 @@ def write_table1_main_results(metrics):
         ("+Synthetic", "final", "final_synthetic"),
     ]
 
-    # Build val AUROCs from config files
     val_aurocs = {}
     for stage_cfg, key in [("baseline", "baseline"), ("finetune", "finetuned"), ("augment", "final")]:
         try:
@@ -101,7 +84,6 @@ def write_table1_main_results(metrics):
 
 
 def write_table2_subgroup_results(metrics):
-    """Table 2: Light vs Dark subgroup AUROC and bootstrap CIs."""
     stages = metrics["stages"]
     bootstrap = metrics.get("bootstrap_ci", {})
 
@@ -153,7 +135,6 @@ def write_table2_subgroup_results(metrics):
 
 
 def write_table3_sensitivity(metrics):
-    """Table 3: Sensitivity and specificity by subgroup."""
     stages = metrics["stages"]
     lines = [
         r"\begin{table}[htbp]",
@@ -193,7 +174,6 @@ def write_table3_sensitivity(metrics):
 
 
 def write_table4_ablation(ablation_rows):
-    """Table 4: Ablation study."""
     lines = [
         r"\begin{table}[htbp]",
         r"\centering",
@@ -235,7 +215,6 @@ def write_table4_ablation(ablation_rows):
 
 
 def write_table5_training_config():
-    """Table 5: Training hyperparameters by stage — reads from config.json files."""
     stages_cfg = {}
     for stage in ["baseline", "finetune", "augment"]:
         try:
@@ -279,7 +258,6 @@ def write_table5_training_config():
 
 
 def write_table6_dataset(metrics):
-    """Table 6: Dataset summary."""
     sizes = metrics.get("split_sizes", {})
     syn_count = metrics.get("synthetic_source", "train_dark_mel_only")
     test_sub = metrics.get("test_subgroup_sizes", {})
@@ -308,7 +286,6 @@ def write_table6_dataset(metrics):
 
 
 def write_table7_provenance():
-    """Table 7: Metrics provenance (appendix)."""
     lines = [
         r"\begin{table}[htbp]",
         r"\centering",
