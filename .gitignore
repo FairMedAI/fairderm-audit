@@ -19,7 +19,8 @@ dataverse_files.zip
 models/*.pth
 
 # Results (generated at runtime)
-results/
+results/*
+!results/metrics_clean.json
 
 # OS
 .DS_Store

@@ -1,0 +1,167 @@
+{
+  "seed": 42,
+  "split_file": "splits/ddi_split_seed42.json",
+  "split_sizes": {
+    "train": 393,
+    "val": 131,
+    "test": 132
+  },
+  "test_subgroup_sizes": {
+    "light": 42,
+    "dark": 42,
+    "light_melanoma": 10,
+    "dark_melanoma": 10
+  },
+  "synthetic_source": "train_dark_mel_only",
+  "pos_weight_dynamic": 2.8529,
+  "hyperparams_shared": {
+    "lr": 5e-05,
+    "batch_size": 32,
+    "weight_decay": 0.0001
+  },
+  "thresholds": {
+    "baseline": 0.5,
+    "finetuned": 0.013354,
+    "final": 0.010738
+  },
+  "threshold_strategy": {
+    "baseline": "fixed_0.5",
+    "finetuned": "youden_j_on_validation",
+    "final": "youden_j_on_validation"
+  },
+  "stages": {
+    "baseline": {
+      "Light": {
+        "n_total": 42,
+        "n_melanoma": 10,
+        "auroc": 0.6281,
+        "sensitivity": 0.2,
+        "specificity": 0.9375,
+        "ppv": 0.5,
+        "thresh": 0.5
+      },
+      "Dark": {
+        "n_total": 42,
+        "n_melanoma": 10,
+        "auroc": 0.5781,
+        "sensitivity": 0.0,
+        "specificity": 0.9688,
+        "ppv": 0.0,
+        "thresh": 0.5
+      }
+    },
+    "finetune": {
+      "Light": {
+        "n_total": 42,
+        "n_melanoma": 10,
+        "auroc": 0.8,
+        "sensitivity": 0.8,
+        "specificity": 0.6875,
+        "ppv": 0.4444,
+        "thresh": 0.013353722169995308
+      },
+      "Dark": {
+        "n_total": 42,
+        "n_melanoma": 10,
+        "auroc": 0.4719,
+        "sensitivity": 0.4,
+        "specificity": 0.5312,
+        "ppv": 0.2105,
+        "thresh": 0.013353722169995308
+      }
+    },
+    "final_synthetic": {
+      "Light": {
+        "n_total": 42,
+        "n_melanoma": 10,
+        "auroc": 0.7656,
+        "sensitivity": 0.9,
+        "specificity": 0.625,
+        "ppv": 0.4286,
+        "thresh": 0.010737532749772072
+      },
+      "Dark": {
+        "n_total": 42,
+        "n_melanoma": 10,
+        "auroc": 0.4625,
+        "sensitivity": 0.7,
+        "specificity": 0.3438,
+        "ppv": 0.25,
+        "thresh": 0.010737532749772072
+      }
+    }
+  },
+  "overall_test": {
+    "baseline": {
+      "auroc": 0.6374,
+      "sensitivity": 0.1143,
+      "specificity": 0.9691,
+      "f1": 0.1905,
+      "auroc_ci": {
+        "median": 0.6367,
+        "lo": 0.5287,
+        "hi": 0.7473
+      }
+    },
+    "finetuned": {
+      "auroc": 0.6692,
+      "sensitivity": 0.1143,
+      "specificity": 0.9485,
+      "f1": 0.1818,
+      "auroc_ci": {
+        "median": 0.6706,
+        "lo": 0.5669,
+        "hi": 0.7728
+      }
+    },
+    "final": {
+      "auroc": 0.694,
+      "sensitivity": 0.1429,
+      "specificity": 0.9278,
+      "f1": 0.2128,
+      "auroc_ci": {
+        "median": 0.697,
+        "lo": 0.5981,
+        "hi": 0.7816
+      }
+    }
+  },
+  "bootstrap_ci": {
+    "finetuned": {
+      "Light": {
+        "median": 0.80389758025226,
+        "lo": 0.6312094907407407,
+        "hi": 0.9444444444444445
+      },
+      "Dark": {
+        "median": 0.4709843533372945,
+        "lo": 0.25550857843137254,
+        "hi": 0.6969778869778869
+      }
+    },
+    "final": {
+      "Light": {
+        "median": 0.7744732917146709,
+        "lo": 0.587467672413793,
+        "hi": 0.91177151416122
+      },
+      "Dark": {
+        "median": 0.4616365777080063,
+        "lo": 0.269335821449792,
+        "hi": 0.673402391259534
+      }
+    }
+  },
+  "p_value_dark_improvement": 0.524,
+  "note": "AUROC is primary threshold-free metric. Sens/Spec reported at per-stage validation thresholds.",
+  "provenance": {
+    "source_file": "results/metrics_seed42.json",
+    "method": "code",
+    "hardcoded": "no",
+    "verified": true,
+    "leakage_report": "splits/leakage_report.json",
+    "leakage_flag": false,
+    "synthetic_source": "train_dark_mel_only (verified)",
+    "generated_by": "scripts/generate_clean_artifacts.py"
+  }
+}

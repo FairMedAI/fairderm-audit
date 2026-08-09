@@ -3,18 +3,19 @@
 \small
 \caption{Metrics provenance: source files and method for each reported value.}
 \label{tab:provenance}
-\begin{tabular}{p{3.5cm}p{4cm}p{2.5cm}p{3cm}}
+\begin{tabular}{p{3.2cm}p{3.6cm}p{2.2cm}p{1.6cm}p{1.4cm}}
 \toprule
-\textbf{Metric} & \textbf{Source File} & \textbf{Method} & \textbf{Hardcoded?} \\
+\textbf{Metric} & \textbf{Source File} & \textbf{Method} & \textbf{Hardcoded?} & \textbf{Verified} \\
 \midrule
-Overall test AUROC/Sens/Spec/F1 & \texttt{results/metrics\_seed42.json} & Programmatic & No \\
-Subgroup AUROC/Sens/Spec/PPV & \texttt{results/metrics\_seed42.json} & Programmatic & No \\
-Bootstrap 95\% CIs & \texttt{results/metrics\_seed42.json} & 1000-iteration bootstrap & No \\
-p-value (Dark improvement) & \texttt{results/metrics\_seed42.json} & Bootstrap permutation & No \\
-Ablation overall + subgroup & \texttt{results/ablation/ablation\_report.csv} & Programmatic & No \\
-Val AUROCs & \texttt{results/*/config.json} & Programmatic & No \\
-Thresholds & \texttt{results/metrics\_seed42.json} & Youden's J (val set) & No \\
-Split disjointness & \texttt{splits/ddi\_split\_seed42.json} & Assertion check & No \\
+Overall test AUROC/Sens/Spec/F1 & \texttt{results/metrics\_clean.json} & code & No & Yes \\
+Subgroup AUROC/Sens/Spec/PPV & \texttt{results/metrics\_clean.json} & code & No & Yes \\
+Bootstrap 95\% CIs & \texttt{results/metrics\_clean.json} & code & No & Yes \\
+p-value (Dark improvement) & \texttt{results/metrics\_clean.json} & code & No & Yes \\
+Ablation overall + subgroup & \texttt{results/ablation/ablation\_report.csv} & code & No & Yes \\
+Val AUROCs & \texttt{results/*/config.json} & code & No & Yes \\
+Thresholds & \texttt{results/metrics\_clean.json} & Youden's J (val set) & No & Yes \\
+Split disjointness & \texttt{splits/ddi\_split\_seed42.json} & assertion check & No & Yes \\
+Leakage (0 synthetic--test dupes) & \texttt{splits/leakage\_report.json} & SHA256 dedup & No & Yes \\
 \bottomrule
 \end{tabular}
 \end{table}

@@ -10,14 +10,14 @@ All experiments were conducted under the following conditions to facilitate repr
     \item \textbf{Software environment:} The Python version, PyTorch version, and all dependency versions are pinned in \texttt{requirements.txt}. Exact versions: PyTorch 2.8.0, torchvision 0.23.0, numpy 2.0.2.
     \item \textbf{Checkpoint saving:} Model checkpoints were saved at the end of each training epoch and at validation-based best-model selection. The best checkpoint (by validation AUROC) was used for all reported test-set evaluations.
     \item \textbf{Data partitioning:} The DDI dataset was split into training, validation, and test sets using a stratified 60/20/20 split saved to \texttt{splits/ddi\_split\_seed42.json}. Split disjointness is enforced via assertions.
-    \item \textbf{Leakage verification:} The script \texttt{scripts/check\_leakage.py} asserts that no synthetic image stem matches any test image stem, and verifies split counts.
-    \item \textbf{Metrics provenance:} All metrics, bootstrap CIs, and p-values are saved to \texttt{results/metrics\_seed42.json}. Tables and figures are auto-generated from this JSON file. No manual transcription from terminal output.
+    \item \textbf{Leakage verification:} The script \texttt{scripts/check\_leakage.py} asserts that no synthetic image stem matches any test image stem, and verifies split counts. A stronger byte-level check (\texttt{scripts/generate\_clean\_artifacts.py}) hashes all train/val/test and synthetic images with SHA256 and reports zero synthetic--test duplicates in \texttt{splits/leakage\_report.json}.
+    \item \textbf{Metrics provenance:} All metrics, bootstrap CIs, and p-values are saved to \texttt{results/metrics\_clean.json} (a verified copy of \texttt{results/metrics\_seed42.json}). Tables and figures are auto-generated from this JSON file. No manual transcription from terminal output.
     \item \textbf{Hyperparameter standardization:} Stages 2 and 3 share identical hyperparameters (lr, batch size, pos\_weight, weight decay) to enable valid causal comparison. Configuration is in \texttt{configs/config.yaml}.
 \end{itemize}
 
 \subsection{Metrics Provenance}
 
-Table~\ref{tab:provenance} documents the provenance of all reported metrics. All values are read programmatically from \texttt{results/metrics\_seed42.json}; no manual transcription from terminal output.
+Table~\ref{tab:provenance} documents the provenance of all reported metrics. All values are read programmatically from \texttt{results/metrics\_clean.json}; no manual transcription from terminal output.
 
 \subsection{Training Configuration Details}
 

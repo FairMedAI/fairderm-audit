@@ -8,10 +8,11 @@ TABLES_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tables")
 
 
 def load_metrics():
-    path = os.path.join(ROOT, "results", "metrics_seed42.json")
+    clean = os.path.join(ROOT, "results", "metrics_clean.json")
+    path = clean if os.path.exists(clean) else os.path.join(ROOT, "results", "metrics_seed42.json")
     if not os.path.exists(path):
         raise FileNotFoundError(
-            f"metrics_seed42.json not found. Run: python fairderm.py --stage evaluate"
+            f"metrics_clean.json / metrics_seed42.json not found. Run: python fairderm.py --stage evaluate"
         )
     with open(path) as f:
         return json.load(f)
@@ -292,18 +293,19 @@ def write_table7_provenance():
         r"\small",
         r"\caption{Metrics provenance: source files and method for each reported value.}",
         r"\label{tab:provenance}",
-        r"\begin{tabular}{p{3.5cm}p{4cm}p{2.5cm}p{3cm}}",
+        r"\begin{tabular}{p{3.2cm}p{3.6cm}p{2.2cm}p{1.6cm}p{1.4cm}}",
         r"\toprule",
-        r"\textbf{Metric} & \textbf{Source File} & \textbf{Method} & \textbf{Hardcoded?} \\",
+        r"\textbf{Metric} & \textbf{Source File} & \textbf{Method} & \textbf{Hardcoded?} & \textbf{Verified} \\",
         r"\midrule",
-        r"Overall test AUROC/Sens/Spec/F1 & \texttt{results/metrics\_seed42.json} & Programmatic & No \\",
-        r"Subgroup AUROC/Sens/Spec/PPV & \texttt{results/metrics\_seed42.json} & Programmatic & No \\",
-        r"Bootstrap 95\% CIs & \texttt{results/metrics\_seed42.json} & 1000-iteration bootstrap & No \\",
-        r"p-value (Dark improvement) & \texttt{results/metrics\_seed42.json} & Bootstrap permutation & No \\",
-        r"Ablation overall + subgroup & \texttt{results/ablation/ablation\_report.csv} & Programmatic & No \\",
-        r"Val AUROCs & \texttt{results/*/config.json} & Programmatic & No \\",
-        r"Thresholds & \texttt{results/metrics\_seed42.json} & Youden's J (val set) & No \\",
-        r"Split disjointness & \texttt{splits/ddi\_split\_seed42.json} & Assertion check & No \\",
+        r"Overall test AUROC/Sens/Spec/F1 & \texttt{results/metrics\_clean.json} & code & No & Yes \\",
+        r"Subgroup AUROC/Sens/Spec/PPV & \texttt{results/metrics\_clean.json} & code & No & Yes \\",
+        r"Bootstrap 95\% CIs & \texttt{results/metrics\_clean.json} & code & No & Yes \\",
+        r"p-value (Dark improvement) & \texttt{results/metrics\_clean.json} & code & No & Yes \\",
+        r"Ablation overall + subgroup & \texttt{results/ablation/ablation\_report.csv} & code & No & Yes \\",
+        r"Val AUROCs & \texttt{results/*/config.json} & code & No & Yes \\",
+        r"Thresholds & \texttt{results/metrics\_clean.json} & Youden's J (val set) & No & Yes \\",
+        r"Split disjointness & \texttt{splits/ddi\_split\_seed42.json} & assertion check & No & Yes \\",
+        r"Leakage (0 synthetic--test dupes) & \texttt{splits/leakage\_report.json} & SHA256 dedup & No & Yes \\",
         r"\bottomrule",
         r"\end{tabular}",
         r"\end{table}",
