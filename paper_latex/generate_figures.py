@@ -14,7 +14,7 @@ FIG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "figures")
 
 
 def load_metrics():
-    path = os.path.join(ROOT, "results", "metrics_seed42.json")
+    path = os.path.join(ROOT, "results", "metrics_clean.json")
     with open(path) as f:
         return json.load(f)
 

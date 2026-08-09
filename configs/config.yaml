@@ -1,4 +1,5 @@
 # FairDerm hyperparameters
+# Actuals from fairderm.py CONFIG dict
 seed: 42
 img_size: 224
 model: EfficientNet-B0
@@ -18,6 +19,7 @@ stage2:
   batch_size: 32
   pos_weight: dynamic  # calculated from train split as n_neg/n_pos
   patience: 3
+  threshold: "Youden-J on validation set"
   freeze_layers:
     - features.6
     - features.7
@@ -29,6 +31,7 @@ stage3:
   batch_size: 32
   pos_weight: dynamic
   patience: 3
+  synthetic_count: 290  # 29 train dark-mel x 10 variants
   freeze_layers:
     - features.6
     - features.7
