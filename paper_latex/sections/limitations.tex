@@ -1,11 +1,11 @@
 \section{Limitations}
 
-We identify thirteen limitations of this study, organized by severity. Collectively, these limitations indicate that the reported results are directional, not definitive, and should be interpreted with appropriate caution.
+We identify fourteen limitations of this study, organized by severity. Collectively, these limitations indicate that the reported results are directional, not definitive, and should be interpreted with appropriate caution.
 
 \subsection{High Severity}
 
 \begin{enumerate}
-    \item \textbf{Small DDI test subgroup ($n=42$, 10 melanomas).} The Dark subgroup test set contains only 42 images, of which 10 are melanoma-positive. This small sample size yields wide bootstrap confidence intervals (e.g., Dark AUROC $[0.269,\; 0.673]$), severely limiting statistical power and the precision of point estimates. The permutation test p-value of 0.524 confirms that synthetic augmentation did not significantly improve Dark AUROC. Subgroup conclusions should be treated as preliminary and require validation on larger cohorts.
+    \item \textbf{Small DDI test subgroup ($n=42$, 10 melanomas).} The Dark subgroup test set contains only 42 images, of which 10 are melanoma-positive. This small sample size yields wide bootstrap confidence intervals (e.g., Dark AUROC $[0.287,\; 0.754]$), severely limiting statistical power and the precision of point estimates. The permutation test p-value of 0.429 confirms that synthetic augmentation did not significantly improve Dark AUROC. Subgroup conclusions should be treated as preliminary and require validation on larger cohorts.
 \end{enumerate}
 
 \subsection{Medium Severity}
@@ -40,6 +40,8 @@ We identify thirteen limitations of this study, organized by severity. Collectiv
     \item \textbf{Bootstrap CI centers may not exactly match point estimates.} The bootstrap confidence interval centers do not exactly correspond to the reported point estimates, reflecting the asymmetric sampling distribution inherent in small subgroups. This is a known property of bootstrap methods and should be noted when interpreting CIs.
 
     \item \textbf{Synthetic images generated from only 29 source images.} With only 29 training dark-skin melanomas, the diversity of generated synthetics is limited by the source distribution. More source images would enable greater variation in the synthetic set.
+
+    \item \textbf{Partial baseline checkpoint.} The reported baseline results use a partial HAM10000 checkpoint (best validation epoch 5, val AUROC 0.9650), because the full 15-epoch run was interrupted before completion. A complete 15-epoch baseline is pending; the baseline subgroup metrics may shift once the full run is available.
 \end{enumerate}
 
 \subsection{Fixed Issues}
