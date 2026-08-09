@@ -8,23 +8,23 @@ Hyperparameters for Stages 2 and 3 are held identical (lr\,$=$\,$5{\times}10^{-5
 
 \subsection{Baseline}
 
-The baseline model is trained exclusively on HAM10000 (7,818 mel/nv samples) with an 80/20 stratified split. No DDI data is used at this stage. The model achieves strong validation AUROC (0.9336) on HAM10000, confirming effective ImageNet transfer learning.
+The baseline model is trained exclusively on HAM10000 (7,818 mel/nv samples) with an 80/20 stratified split. No DDI data is used at this stage. The model achieves strong validation AUROC (0.9650) on HAM10000, confirming effective ImageNet transfer learning. Because the overnight 15-epoch run was interrupted, the reported baseline checkpoint is a partial model (best validation epoch 5); a full 15-epoch baseline is pending.
 
-When evaluated on the DDI test set using the default threshold of 0.5, the baseline exhibits limited dark-skin performance: AUROC\,$=$\,0.578 and sensitivity\,$=$\,0.000, meaning the model fails to detect any dark-skin melanomas at this operating point. Light-skin AUROC is 0.628. The overall DDI test AUROC is 0.637. These results confirm the skin-tone performance gap present at the pretraining stage, consistent with the documented bias in dermatological AI systems \cite{Daneshjou2022, Groh2021}.
+When evaluated on the DDI test set using the default threshold of 0.5, the baseline exhibits limited dark-skin performance: AUROC\,$=$\,0.588 and sensitivity\,$=$\,0.300. Light-skin AUROC is 0.719. The overall DDI test AUROC is 0.662. These results confirm the skin-tone performance gap present at the pretraining stage, consistent with the documented bias in dermatological AI systems \cite{Daneshjou2022, Groh2021}.
 
 \subsection{Fine-tuning}
 
-Fine-tuning the baseline model on DDI (393 training samples) with progressive unfreezing substantially improves overall test AUROC from 0.637 to 0.669. However, the improvement is unevenly distributed across skin tones: Light AUROC increases to 0.800 while Dark AUROC decreases to 0.472, widening the subgroup AUROC gap from $-0.050$ to $-0.328$ (Dark minus Light). Light-skin sensitivity improves to 0.800 at the Youden's $J$ threshold computed on the validation set, but dark-skin sensitivity reaches only 0.400.
+Fine-tuning the baseline model on DDI (393 training samples) with progressive unfreezing marginally improves overall test AUROC from 0.662 to 0.670. However, the improvement is unevenly distributed across skin tones: Light AUROC increases to 0.784 while Dark AUROC decreases to 0.500, widening the subgroup AUROC gap from $-0.131$ to $-0.284$ (Dark minus Light). Light-skin sensitivity improves to 0.900 at the Youden's $J$ threshold computed on the validation set, but dark-skin sensitivity reaches only 0.500.
 
 This result demonstrates that standard fine-tuning on a small, skin-tone-imbalanced dataset can \emph{amplify rather than mitigate} the performance gap. The fine-tuned model learns to exploit the overrepresented Light subgroup features while failing to generalize to Dark subgroup patterns.
 
-Bootstrap 95\% confidence intervals for the fine-tuned model are: Light AUROC\,$=$\,0.800\,[0.631--0.944], Dark AUROC\,$=$\,0.471\,[0.256--0.697]. The wide Dark CI reflects the small subgroup size ($n\,{=}\,42$, 10 melanomas).
+Bootstrap 95\% confidence intervals for the fine-tuned model are: Light AUROC\,$=$\,0.784\,[0.596--0.938], Dark AUROC\,$=$\,0.500\,[0.279--0.733]. The wide Dark CI reflects the small subgroup size ($n\,{=}\,42$, 10 melanomas).
 
 \subsection{Synthetic Augmentation}
 
-Adding 290 synthetic dark-skin melanoma images (generated exclusively from 29 training-split dark-skin melanomas, 10 variants each) to the DDI training set does not significantly change overall test AUROC (0.67\,$\rightarrow$\,0.69). The Dark subgroup AUROC is essentially unchanged: 0.472 (fine-tuned) to 0.463 (augmented), with a permutation test $p\,{=}\,0.524$. The Light--Dark AUROC gap remains large ($-0.30$). Dark-skin sensitivity increases from 0.400 to 0.700 at the Youden's $J$ threshold, while Light-skin sensitivity increases from 0.800 to 0.900.
+Adding 290 synthetic dark-skin melanoma images (generated exclusively from 29 training-split dark-skin melanomas, 10 variants each) to the DDI training set does not significantly change overall test AUROC (0.67\,$\rightarrow$\,0.68). The Dark subgroup AUROC improves modestly from 0.500 (fine-tuned) to 0.525 (augmented), with a permutation test $p\,{=}\,0.429$. The Light--Dark AUROC gap narrows from $-0.284$ to $-0.191$. Dark-skin sensitivity increases from 0.500 to 0.600 at the Youden's $J$ threshold, while Light-skin sensitivity decreases from 0.900 to 0.500.
 
-Bootstrap 95\% CIs are: Light AUROC\,$=$\,0.774\,[0.587--0.912], Dark AUROC\,$=$\,0.462\,[0.269--0.673]. The permutation test p-value of 0.524 confirms no significant Dark AUROC improvement. With only 10 melanomas per subgroup, the study is underpowered, but the point estimates indicate that simple photometric augmentation does not meaningfully improve dark-skin melanoma detection.
+Bootstrap 95\% CIs are: Light AUROC\,$=$\,0.716\,[0.529--0.882], Dark AUROC\,$=$\,0.525\,[0.287--0.754]. The permutation test p-value of 0.429 confirms no significant Dark AUROC improvement. With only 10 melanomas per subgroup, the study is underpowered, but the point estimates indicate that simple photometric augmentation does not meaningfully improve dark-skin melanoma detection.
 
 As noted in Section~\ref{sec:synthetic_aug}, synthetic images are now generated exclusively from training-split data, eliminating the information leakage present in earlier versions of this work.
 

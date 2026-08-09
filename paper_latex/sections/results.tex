@@ -13,11 +13,11 @@ Table~\ref{tab:main_results} presents the primary classification performance acr
 
 Figure~\ref{fig:subgroup_auroc} visualizes the per-subgroup AUROC progression across these stages.
 
-The pretrained baseline achieved an overall AUROC of 0.637 on the held-out test set. Stratified evaluation revealed a modest skin-tone disparity: the Dark subgroup AUROC was 0.578, while the Light subgroup AUROC was 0.628 (gap\,$=$\,$-0.050$). These results suggest that the pretrained model exhibited limited but non-negligible discriminative ability for melanoma detection across skin tones.
+The pretrained baseline achieved an overall AUROC of 0.662 on the held-out test set. Stratified evaluation revealed a skin-tone disparity: the Dark subgroup AUROC was 0.588, while the Light subgroup AUROC was 0.719 (gap\,$=$\,$-0.131$). These results suggest that the pretrained model exhibited limited discriminative ability for melanoma detection across skin tones. Because the overnight 15-epoch HAM10000 run was interrupted, the reported baseline checkpoint is a partial model (best validation epoch 5, val AUROC 0.9650); a full 15-epoch baseline is pending and will be reported in a future update.
 
-Fine-tuning on the DDI training split improved overall AUROC to 0.669 (Table~\ref{tab:main_results}). However, the improvement was unevenly distributed: Light subgroup AUROC rose to 0.800 while Dark subgroup AUROC decreased to 0.472. The inter-group AUROC gap widened from $-0.050$ to $-0.328$, indicating that standard fine-tuning disproportionately benefited the overrepresented Light subgroup while degrading Dark subgroup performance. This finding---that fine-tuning on small, imbalanced data can \emph{amplify} bias rather than reduce it---is a key contribution of this work.
+Fine-tuning on the DDI training split marginally improved overall AUROC to 0.670 (Table~\ref{tab:main_results}). However, the improvement was unevenly distributed: Light subgroup AUROC rose to 0.784 while Dark subgroup AUROC decreased to 0.500. The inter-group AUROC gap widened from $-0.131$ to $-0.284$, indicating that standard fine-tuning disproportionately benefited the overrepresented Light subgroup while degrading Dark subgroup performance. This finding---that fine-tuning on small, imbalanced data can \emph{amplify} bias rather than reduce it---is a key contribution of this work.
 
-The addition of synthetic augmentation during fine-tuning yielded an overall AUROC of 0.694, a modest improvement over the fine-tuned model. However, the Dark subgroup AUROC decreased slightly to 0.463, and the Light--Dark gap remained large at $-0.303$. The permutation test p-value of 0.524 confirms that the change in Dark AUROC is not statistically significant. Bootstrap confidence intervals remain wide (Dark AUROC: 0.46\,[0.27--0.67]), reflecting the small sample size. These findings indicate that simple photometric augmentation from 29 source images is insufficient to close the skin-tone performance gap.
+The addition of synthetic augmentation during fine-tuning yielded an overall AUROC of 0.684, a modest improvement over the fine-tuned model. The Dark subgroup AUROC increased slightly to 0.525, narrowing the Light--Dark gap to $-0.191$. The permutation test p-value of 0.429 confirms that the change in Dark AUROC is not statistically significant. Bootstrap confidence intervals remain wide (Dark AUROC: 0.53\,[0.29--0.75]), reflecting the small sample size. These findings indicate that simple photometric augmentation from 29 source images is insufficient to close the skin-tone performance gap.
 
 \subsection{Subgroup Analysis}
 
@@ -32,9 +32,9 @@ Table~\ref{tab:subgroup_auroc} reports per-subgroup AUROC, sensitivity, and spec
 
 Figure~\ref{fig:bootstrap_ci} displays bootstrap confidence intervals for the subgroup AUROC estimates.
 
-The Dark subgroup exhibited minimal improvement across stages. AUROC progressed from 0.578 (baseline) to 0.472 (fine-tuned) to 0.463 (augmented), indicating that neither fine-tuning nor synthetic augmentation meaningfully improved dark-skin melanoma detection. The Light subgroup AUROC progressed from 0.628 to 0.800 to 0.766, driven by the overrepresentation of Light subgroup training examples.
+The Dark subgroup exhibited minimal improvement across stages. AUROC progressed from 0.588 (baseline) to 0.500 (fine-tuned) to 0.525 (augmented), indicating that neither fine-tuning nor synthetic augmentation meaningfully improved dark-skin melanoma detection. The Light subgroup AUROC progressed from 0.719 to 0.784 to 0.716, driven by the overrepresentation of Light subgroup training examples.
 
-Bootstrap confidence intervals (1000 iterations, stratified) confirmed the high uncertainty. The fine-tuned Dark AUROC bootstrap CI was $[0.256,\; 0.697]$, and the augmented model Dark AUROC CI was $[0.269,\; 0.673]$. The substantial overlap between these intervals and the permutation test p-value of 0.524 confirm that synthetic augmentation did not significantly improve Dark AUROC.
+Bootstrap confidence intervals (1000 iterations, stratified) confirmed the high uncertainty. The fine-tuned Dark AUROC bootstrap CI was $[0.279,\; 0.733]$, and the augmented model Dark AUROC CI was $[0.287,\; 0.754]$. The substantial overlap between these intervals and the permutation test p-value of 0.429 confirm that synthetic augmentation did not significantly improve Dark AUROC.
 
 \subsection{Sensitivity Analysis}
 
@@ -49,11 +49,11 @@ Table~\ref{tab:sensitivity} reports sensitivity and specificity stratified by sk
 
 Figure~\ref{fig:sensitivity_gap} illustrates the sensitivity gap trajectory across model stages.
 
-Dark subgroup sensitivity improved across stages: 0.0 (baseline) $\rightarrow$ 0.40 (fine-tuned) $\rightarrow$ 0.70 (augmented). While this progression suggests the augmented model correctly identified more dark-skin melanomas, the improvement is threshold-dependent and AUROC remains the primary metric.
+Dark subgroup sensitivity improved across stages: 0.300 (baseline) $\rightarrow$ 0.500 (fine-tuned) $\rightarrow$ 0.600 (augmented). While this progression suggests the augmented model correctly identified more dark-skin melanomas, the improvement is threshold-dependent and AUROC remains the primary metric.
 
-Light subgroup sensitivity followed: 0.20 (baseline) $\rightarrow$ 0.80 (fine-tuned) $\rightarrow$ 0.90 (augmented). Both subgroups show improved sensitivity, though the Light subgroup benefits more in absolute terms.
+Light subgroup sensitivity progressed: 0.000 (baseline) $\rightarrow$ 0.900 (fine-tuned) $\rightarrow$ 0.500 (augmented). The augmented model trades Light sensitivity for improved Dark sensitivity, producing a more balanced operating point.
 
-The sensitivity gap between Light and Dark subgroups shifted from $-0.40$ (fine-tuned) to $-0.20$ (augmented). While sensitivity improved, the AUROC gap remained large ($-0.303$), indicating that sensitivity gains at a particular threshold do not translate to overall discrimination improvement. Sensitivity values are computed over small melanoma-positive subgroups ($n=10$ per subgroup) and should be interpreted as directional.
+The sensitivity gap between Light and Dark subgroups shifted from $-0.400$ (fine-tuned) to $+0.100$ (augmented). While sensitivity became more balanced, the AUROC gap remained large ($-0.191$), indicating that sensitivity gains at a particular threshold do not translate to overall discrimination improvement. Sensitivity values are computed over small melanoma-positive subgroups ($n=10$ per subgroup) and should be interpreted as directional.
 
 \subsection{Ablation Study}
 
