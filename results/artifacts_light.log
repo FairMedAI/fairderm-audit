@@ -1,0 +1,12 @@
+  Hashing 656 DDI images ...
+  Hashing synthetics in /Users/shanmuka/Desktop/FairDerm/data/synthetic_train_only ...
+  Saved /Users/shanmuka/Desktop/FairDerm/splits/leakage_report.json (passed=True)
+  Saved /Users/shanmuka/Desktop/FairDerm/splits/splits_clean.json
+  Saved /Users/shanmuka/Desktop/FairDerm/results/metrics_clean.json
+
+Summary:
+  Train dark melanoma sources: 29
+  Synthetic images: 290
+  Test images hashed: 132
+  Synthetic overlap with test: 0
+  LEAKAGE CHECK: PASSED

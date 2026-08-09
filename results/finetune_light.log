@@ -1,0 +1,52 @@
+============================================================
+STAGE: DDI FINE-TUNING
+============================================================
+  Log file: /Users/shanmuka/Desktop/FairDerm/results/finetune/train.log
+  DDI: loaded 656 samples from /Users/shanmuka/Desktop/FairDerm/ddidiversedermatologyimages
+  Split: Train=393, Val=131, Test=132
+  Dynamic pos_weight: 2.85 (n_neg=291, n_pos=102)
+
+  Dataset:
+    Train:      393 samples
+    Validation: 131 samples
+    Test:       132 samples
+
+  Class balance (train):
+    Malignant: 102 (26.0%)
+    Benign:    291 (74.0%)
+
+  Skin tone distribution (train):
+    Light   : 124 (31.6%)
+    Medium  : 145 (36.9%)
+    Dark    : 124 (31.6%)
+
+  Device:     mps
+  Batch size: 16
+  LR:         5e-05
+
+  Loaded baseline weights from /Users/shanmuka/Desktop/FairDerm/models/fairderm_ham_baseline.pth
+
+  Fine-tuning 10 epochs -> /Users/shanmuka/Desktop/FairDerm/models/fairderm_ddi_finetuned.pth
+  Epoch 1/10: Loss 3.1611 | Val AUC 0.7423
+    Time: 16.4s | ETA: 2m 28s
+    -> Saved best model (AUROC=0.7423)
+  Epoch 2/10: Loss 2.5278 | Val AUC 0.7307
+    Time: 12.1s | ETA: 1m 36s
+  Epoch 3/10: Loss 2.1897 | Val AUC 0.7383
+    Time: 11.9s | ETA: 1m 23s
+  Epoch 4/10: Loss 1.8657 | Val AUC 0.7438
+    Time: 11.7s | ETA: 1m 09s
+    -> Saved best model (AUROC=0.7438)
+  Epoch 5/10: Loss 1.4922 | Val AUC 0.7538
+    Time: 11.2s | ETA: 0m 55s
+    -> Saved best model (AUROC=0.7538)
+  Epoch 6/10: Loss 1.2401 | Val AUC 0.7492
+    Time: 11.4s | ETA: 0m 45s
+  Epoch 7/10: Loss 1.2446 | Val AUC 0.7459
+    Time: 13.0s | ETA: 0m 39s
+  Epoch 8/10: Loss 0.8376 | Val AUC 0.7447
+    Time: 11.6s | ETA: 0m 23s
+  Early stopping triggered.
+  Experiment saved to /Users/shanmuka/Desktop/FairDerm/results/finetune/
+
+DDI fine-tuning complete.

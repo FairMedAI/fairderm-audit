@@ -1,0 +1,34 @@
+============================================================
+STAGE: EVALUATION & FAIRNESS AUDIT
+============================================================
+  DDI: loaded 656 samples from /Users/shanmuka/Desktop/FairDerm/ddidiversedermatologyimages
+  Split: Train=393, Val=131, Test=132
+
+  Evaluating baseline ...
+    [test] AUROC=0.662  Sens=0.229  Spec=0.887  F1=0.296
+
+  Evaluating finetuned ...
+    [test] AUROC=0.670  Sens=0.200  Spec=0.907  F1=0.275
+
+  Evaluating final ...
+    [test] AUROC=0.684  Sens=0.200  Spec=0.918  F1=0.280
+  baseline: threshold = 0.5 (fixed)
+  finetuned: threshold = 0.0322 (Youden's J on validation)
+  final: threshold = 0.0505 (Youden's J on validation)
+
+  Finetuned — Bootstrap CIs (test):
+    Light n=42 -> 0.792 [0.596-0.938]
+    Dark n=42 -> 0.499 [0.279-0.733]
+
+  Final — Bootstrap CIs (test):
+    Light n=42 -> 0.722 [0.529-0.882]
+    Dark n=42 -> 0.528 [0.287-0.754]
+
+  p-value for Dark AUROC improvement (finetuned -> augment): 0.4290
+
+  Saved ROC progression -> /Users/shanmuka/Desktop/FairDerm/results/evaluate/fig4_roc_progression.png
+
+  Saved paper data -> /Users/shanmuka/Desktop/FairDerm/results/evaluate/paper_data.json
+  Saved metrics -> /Users/shanmuka/Desktop/FairDerm/results/metrics_seed42.json
+
+Evaluation complete.

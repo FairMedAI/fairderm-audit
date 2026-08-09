@@ -1,0 +1,10 @@
+  Synthetic images: 290
+  Test images: 132
+  Overlap with test: 0
+  Test Light: 42 (10 mel)
+  Test Dark: 42 (10 mel)
+
+LEAKAGE CHECK PASSED
+  Train: 393, Val: 131, Test: 132
+  Train dark mel: 29
+  All sets disjoint: YES

@@ -1,0 +1,46 @@
+============================================================
+STAGE: SYNTHETIC AUGMENTATION
+============================================================
+  Log file: /Users/shanmuka/Desktop/FairDerm/results/augment/train.log
+  DDI: loaded 656 samples from /Users/shanmuka/Desktop/FairDerm/ddidiversedermatologyimages
+  Split: Train=393, Val=131, Test=132
+  Found 29 TRAIN dark-skin melanomas (source for synthetics)
+  Split: Train=393, Val=131, Test=132
+  [TMLR LEAKAGE CHECK] Test=132 Syn=290 Overlap=0 PASSED=True
+  Synthetic images already exist (290 files)
+  Dynamic pos_weight: 2.85 (n_neg=291, n_pos=102)
+  Loaded finetuned weights from /Users/shanmuka/Desktop/FairDerm/models/fairderm_ddi_finetuned.pth
+
+  Dataset:
+    Train:      393 samples
+    Validation: 131 samples
+
+  Class balance (train):
+    Malignant: 102 (26.0%)
+    Benign:    291 (74.0%)
+
+  Skin tone distribution (train):
+    Light   : 124 (31.6%)
+    Medium  : 145 (36.9%)
+    Dark    : 124 (31.6%)
+    Synthetic images: 290
+    Combined train: 683
+
+  Device:     mps
+  Batch size: 16
+  LR:         5e-05
+
+
+  Training 10 epochs on combined data (683 samples) ...
+  Epoch 1/10: Loss 3.0342 | Val AUC 0.7653
+    Time: 20.3s | ETA: 3m 02s
+    -> Saved best model (AUROC=0.7653)
+  Epoch 2/10: Loss 1.6592 | Val AUC 0.7599
+    Time: 20.2s | ETA: 2m 41s
+  Epoch 3/10: Loss 1.2797 | Val AUC 0.7550
+    Time: 16.9s | ETA: 1m 58s
+  Epoch 4/10: Loss 0.9875 | Val AUC 0.7523
+    Time: 16.7s | ETA: 1m 40s
+  Early stopping triggered.
+  Experiment saved to /Users/shanmuka/Desktop/FairDerm/results/augment/
+Synthetic augmentation complete.

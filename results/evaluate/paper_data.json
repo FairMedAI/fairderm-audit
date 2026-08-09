@@ -1,0 +1,64 @@
+{
+  "stages": {
+    "baseline": {
+      "Light": {
+        "n_total": 42,
+        "n_melanoma": 10,
+        "auroc": 0.7188,
+        "sensitivity": 0.0,
+        "specificity": 0.9375,
+        "ppv": 0.0,
+        "thresh": 0.5
+      },
+      "Dark": {
+        "n_total": 42,
+        "n_melanoma": 10,
+        "auroc": 0.5875,
+        "sensitivity": 0.3,
+        "specificity": 0.8125,
+        "ppv": 0.3333,
+        "thresh": 0.5
+      }
+    },
+    "finetune": {
+      "Light": {
+        "n_total": 42,
+        "n_melanoma": 10,
+        "auroc": 0.7844,
+        "sensitivity": 0.9,
+        "specificity": 0.5625,
+        "ppv": 0.3913,
+        "thresh": 0.03220130875706673
+      },
+      "Dark": {
+        "n_total": 42,
+        "n_melanoma": 10,
+        "auroc": 0.5,
+        "sensitivity": 0.5,
+        "specificity": 0.4375,
+        "ppv": 0.2174,
+        "thresh": 0.03220130875706673
+      }
+    },
+    "final_synthetic": {
+      "Light": {
+        "n_total": 42,
+        "n_melanoma": 10,
+        "auroc": 0.7156,
+        "sensitivity": 0.5,
+        "specificity": 0.7188,
+        "ppv": 0.3571,
+        "thresh": 0.05048808455467224
+      },
+      "Dark": {
+        "n_total": 42,
+        "n_melanoma": 10,
+        "auroc": 0.525,
+        "sensitivity": 0.6,
+        "specificity": 0.4688,
+        "ppv": 0.2609,
+        "thresh": 0.05048808455467224
+      }
+    }
+  }
+}
