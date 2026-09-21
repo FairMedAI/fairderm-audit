@@ -1,8 +1,9 @@
-# FairDerm — Final Results (Frozen)
+# FairDerm — Final Results (Controlled Seed-42 Rerun)
 
-> **Status:** Pipeline fixed for ISEF. Leakage, inconsistent hyperparams, and the
-> hardcoded threshold are all sorted. Numbers below are from the OLD (leaky) runs.
-> New numbers will show up in `results/metrics_seed42.json` after retraining.
+> **Status:** Current controlled single-seed results. The machine-readable
+> artifacts in `results/metrics_seed42.json`, `results/metrics_clean.json`, and
+> the regenerated LaTeX tables are the numerical source of truth. Earlier
+> leaky-run values remain in the repository only as historical provenance.
 >
 > **To regenerate:** Run the full pipeline in order:
 > ```bash
@@ -23,7 +24,7 @@
 
 | Field | Value |
 |-------|-------|
-| Date | 2026-07-23 (code fixed) |
+| Date | 2026-09-20 |
 | Device | MPS (Apple Silicon, arm64) |
 | Seed | 42 |
 | Python | 3.9.6 |
@@ -34,6 +35,7 @@
 | Image size | 224 x 224 |
 | Optimizer | AdamW |
 | Early stopping | patience=3 |
+| Batch size | 32 |
 
 ---
 
@@ -64,16 +66,17 @@
 
 ---
 
-## 4. Main Results — DDI Test Set (n=132)
+## 4. Controlled Results — DDI Test Set
 
-> **NOTE:** These are OLD (leaky) numbers. New numbers will be in
-> `results/metrics_seed42.json` after retraining.
+> Thresholds for sensitivity, specificity, and F1 were selected separately
+> using Youden's J on each validation set. AUROC is the primary threshold-free
+> comparison metric.
 
 | Stage | Val AUROC | Test AUROC | Sens | Spec | F1 | Light AUROC | Dark AUROC |
 |-------|-----------|------------|------|------|----|-------------|------------|
-| Baseline | 0.9336 | 0.611 | 0.000 | 1.000 | 0.000 | 0.5719 | 0.5000 |
-| Fine-tuned | 0.7975 | 0.733 | 0.343 | 0.948 | 0.462 | 0.7312 | 0.5125 |
-| +Synthetic | 0.8123 | 0.774 | 0.314 | 0.938 | 0.423 | 0.7500 | 0.6844 |
+| Baseline | 0.9650 | 0.6622 | 0.6000 | 0.6598 | 0.4719 | 0.7188 | 0.5875 |
+| Fine-tuned | 0.7787 | 0.6336 | 0.5714 | 0.5876 | 0.4211 | 0.7563 | 0.5469 |
+| +Synthetic | 0.7596 | 0.6395 | 0.5429 | 0.6186 | 0.4176 | 0.7719 | 0.4813 |
 
 ---
 
@@ -81,25 +84,27 @@
 
 | Stage | Light AUROC | Dark AUROC | Gap (Dark−Light) |
 |-------|-------------|------------|-------------------|
-| Baseline | 0.5719 | 0.5000 | −0.0719 |
-| Fine-tuned | 0.7312 | 0.5125 | −0.2187 |
-| +Synthetic | 0.7500 | 0.6844 | −0.0656 |
+| Baseline | 0.7188 | 0.5875 | −0.1313 |
+| Fine-tuned | 0.7563 | 0.5469 | −0.2094 |
+| +Synthetic | 0.7719 | 0.4813 | −0.2906 |
 
-**Key finding:** Fine-tuning alone amplified the bias (gap went from -0.07 to -0.22).
-Synthetic augmentation narrowed the gap to -0.07, but with n=10 melanomas per subgroup,
-we can't call it statistically significant.
+**Key finding:** Fine-tuning and synthetic augmentation did not reduce the
+Light--Dark AUROC gap in the controlled seed-42 rerun. The augmented model's
+Dark AUROC was lower than the fine-tuned model's (paired delta -0.0663,
+95% bootstrap interval [-0.1508, 0.0080], p=0.9620). With only 10 melanomas
+per subgroup, the result is preliminary.
 
 ---
 
 ## 6. Key Findings
 
-1. **Fine-tuning amplifies bias:** Standard fine-tuning on small imbalanced data widened the AUROC gap from -0.088 to -0.219. This is arguably the most important finding.
+1. **Fine-tuning did not remove the disparity:** The Light--Dark AUROC gap changed from -0.131 at baseline to -0.209 after fine-tuning.
 
-2. **Synthetic augmentation narrows gap directionally:** Gap reduced from -0.219 to -0.066, but bootstrap CIs are wide and p > 0.05.
+2. **Synthetic augmentation did not improve Dark AUROC:** Dark AUROC changed from 0.5469 to 0.4813, with p=0.9620 for the paired comparison.
 
-3. **Ablation sweet spot at 5x:** Highest validation AUROC. 10x causes overfitting.
+3. **The ablation was non-monotonic:** Dark AUROC was 0.5438 at 0x, 0.5750 at 2x, 0.5344 at 5x, and 0.4812 at 10x.
 
-4. **No bias reversal claimed:** The CI for the delta overlaps 0, so we can't say the augmentation actually helped.
+4. **Claims remain preliminary:** The experiment uses one seed and a test subgroup containing only 10 melanoma cases.
 
 ---
 
