@@ -45,7 +45,7 @@
 |-------|--------|-------|
 | Synthetic leakage | Generated from full DDI (48 dark mel) before split | Generated from train-only (29 dark mel), saved to `data/synthetic_train_only/` |
 | Inconsistent hyperparams | lr/batch/pos_weight differed across stages 2-3 | Stages 2-3 share: lr=5e-5, batch=32, pos_weight=dynamic, weight_decay=1e-4 |
-| Hardcoded threshold 0.1206 | Used for finetuned model evaluation | Deleted; Youden's J computed on validation for each stage |
+| Hardcoded threshold | Used for finetuned model evaluation | Deleted; Youden's J computed on validation for each stage |
 | Ablation methodology | On-the-fly oversampling (duplicated real images) | Saved synthetic images from train-only dark mel |
 | Metrics provenance | Hardcoded from terminal output | All from `results/metrics_seed42.json` |
 | Split saved | Not saved | `splits/ddi_split_seed42.json` with assertions |
@@ -61,7 +61,7 @@
 | DDI | 656 images | 60/20/20 stratified by label + skin tone | Skin: 12=Light(I-II), 34=Medium(III-IV), 56=Dark(V-VI) |
 | Synthetic | ~290 images | Added to DDI train only | 29 train dark mel × 10 augmentations |
 
-**DDI split sizes:** Train=393, Val=131, Test=132 (test n=42 Light, 42 Dark subgroup)
+**DDI split sizes:** Train=393, Val=131, Test=132 (test n=42 Light, 48 Medium, 42 Dark)
 **Test melanomas:** 10 Light, 10 Dark
 
 ---
@@ -74,7 +74,7 @@
 
 | Stage | Val AUROC | Test AUROC | Sens | Spec | F1 | Light AUROC | Dark AUROC |
 |-------|-----------|------------|------|------|----|-------------|------------|
-| Baseline | 0.9650 | 0.6622 | 0.6000 | 0.6598 | 0.4719 | 0.7188 | 0.5875 |
+| Baseline | 0.9650 | 0.6622 | 0.6000 | 0.6598 | 47.19% | 0.7188 | 0.5875 |
 | Fine-tuned | 0.7787 | 0.6336 | 0.5714 | 0.5876 | 0.4211 | 0.7563 | 0.5469 |
 | +Synthetic | 0.7596 | 0.6395 | 0.5429 | 0.6186 | 0.4176 | 0.7719 | 0.4813 |
 
@@ -102,7 +102,7 @@ per subgroup, the result is preliminary.
 
 2. **Synthetic augmentation did not improve Dark AUROC:** Dark AUROC changed from 0.5469 to 0.4813, with p=0.9620 for the paired comparison.
 
-3. **The ablation was non-monotonic:** Dark AUROC was 0.5438 at 0x, 0.5750 at 2x, 0.5344 at 5x, and 0.4812 at 10x.
+3. **The ablation was non-monotonic:** Dark AUROC was 0.5469 at 0x, 0.5750 at 2x, 0.5344 at 5x, and 0.4812 at 10x.
 
 4. **Claims remain preliminary:** The experiment uses one seed and a test subgroup containing only 10 melanoma cases.
 

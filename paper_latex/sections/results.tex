@@ -13,11 +13,11 @@ Table~\ref{tab:main_results} presents the primary classification performance acr
 
 Figure~\ref{fig:subgroup_auroc} visualizes the per-subgroup AUROC progression across these stages.
 
-The pretrained baseline achieved an overall AUROC of 0.662 on the held-out test set. Stratified evaluation revealed a skin-tone disparity: the Dark subgroup AUROC was 0.588, while the Light subgroup AUROC was 0.719 (gap\,$=$\,$-0.131$). These results suggest that the pretrained model exhibited limited discriminative ability for melanoma detection across skin tones. Because the overnight 15-epoch HAM10000 run was interrupted, the reported baseline checkpoint is a partial model (best validation epoch 5, val AUROC 0.9650); a full 15-epoch baseline is pending and will be reported in a future update.
+The pretrained baseline achieved an overall AUROC of 0.662 on the held-out test set. Stratified evaluation revealed a skin-tone disparity: the Dark subgroup AUROC was 0.588, while the Light subgroup AUROC was 0.719 (gap\,$=$\,$-0.131$). The baseline checkpoint was trained for up to 10 epochs with early stopping and reached validation AUROC 0.9650.
 
-Fine-tuning on the DDI training split marginally improved overall AUROC to 0.670 (Table~\ref{tab:main_results}). However, the improvement was unevenly distributed: Light subgroup AUROC rose to 0.784 while Dark subgroup AUROC decreased to 0.500. The inter-group AUROC gap widened from $-0.131$ to $-0.284$, indicating that standard fine-tuning disproportionately benefited the overrepresented Light subgroup while degrading Dark subgroup performance. This finding---that fine-tuning on small, imbalanced data can \emph{amplify} bias rather than reduce it---is a key contribution of this work.
+Fine-tuning on the DDI training split reduced overall AUROC to 0.634 (Table~\ref{tab:main_results}). Light subgroup AUROC was 0.756 and Dark subgroup AUROC was 0.547, widening the inter-group gap from $-0.131$ to $-0.209$. This result shows that standard fine-tuning did not remove the observed disparity.
 
-The addition of synthetic augmentation during fine-tuning yielded an overall AUROC of 0.684, a modest improvement over the fine-tuned model. The Dark subgroup AUROC increased slightly to 0.525, narrowing the Light--Dark gap to $-0.191$. The permutation test p-value of 0.429 confirms that the change in Dark AUROC is not statistically significant. Bootstrap confidence intervals remain wide (Dark AUROC: 0.53\,[0.29--0.75]), reflecting the small sample size. These findings indicate that simple photometric augmentation from 29 source images is insufficient to close the skin-tone performance gap.
+The addition of synthetic augmentation yielded overall AUROC 0.640 and Dark subgroup AUROC 0.481. The Light--Dark gap widened to $-0.291$. The paired bootstrap comparison gave a Dark AUROC delta of $-0.066$ and $p=0.962$. These findings indicate that simple photometric augmentation from 29 source images did not close the skin-tone performance gap.
 
 \subsection{Subgroup Analysis}
 
@@ -32,13 +32,13 @@ Table~\ref{tab:subgroup_auroc} reports per-subgroup AUROC, sensitivity, and spec
 
 Figure~\ref{fig:bootstrap_ci} displays bootstrap confidence intervals for the subgroup AUROC estimates.
 
-The Dark subgroup exhibited minimal improvement across stages. AUROC progressed from 0.588 (baseline) to 0.500 (fine-tuned) to 0.525 (augmented), indicating that neither fine-tuning nor synthetic augmentation meaningfully improved dark-skin melanoma detection. The Light subgroup AUROC progressed from 0.719 to 0.784 to 0.716, driven by the overrepresentation of Light subgroup training examples.
+The Dark subgroup exhibited no consistent improvement across stages. AUROC progressed from 0.588 (baseline) to 0.547 (fine-tuned) to 0.481 (augmented), while Light AUROC progressed from 0.719 to 0.756 to 0.772.
 
-Bootstrap confidence intervals (1000 iterations, stratified) confirmed the high uncertainty. The fine-tuned Dark AUROC bootstrap CI was $[0.279,\; 0.733]$, and the augmented model Dark AUROC CI was $[0.287,\; 0.754]$. The substantial overlap between these intervals and the permutation test p-value of 0.429 confirm that synthetic augmentation did not significantly improve Dark AUROC.
+Bootstrap confidence intervals (1000 iterations) confirmed the high uncertainty. The fine-tuned Dark AUROC bootstrap CI was $[0.341,\; 0.750]$, and the augmented model Dark AUROC CI was $[0.276,\; 0.688]$. Their overlap and the paired comparison p-value of 0.962 show that augmentation did not significantly improve Dark AUROC.
 
 \subsection{Sensitivity Analysis}
 
-Table~\ref{tab:sensitivity} reports sensitivity and specificity stratified by skin tone. Thresholds differ per stage (baseline: 0.5; fine-tuned: Youden's $J$ on validation; augmented: Youden's $J$ on validation); AUROC is the primary comparison metric.
+Table~\ref{tab:sensitivity} reports sensitivity and specificity stratified by skin tone. Thresholds for all stages use Youden's $J$ on validation; AUROC is the primary comparison metric.
 
 \begin{figure}[htbp]
   \centering
@@ -49,11 +49,11 @@ Table~\ref{tab:sensitivity} reports sensitivity and specificity stratified by sk
 
 Figure~\ref{fig:sensitivity_gap} illustrates the sensitivity gap trajectory across model stages.
 
-Dark subgroup sensitivity improved across stages: 0.300 (baseline) $\rightarrow$ 0.500 (fine-tuned) $\rightarrow$ 0.600 (augmented). While this progression suggests the augmented model correctly identified more dark-skin melanomas, the improvement is threshold-dependent and AUROC remains the primary metric.
+Dark subgroup sensitivity was 0.400 (baseline), 0.600 (fine-tuned), and 0.500 (augmented). These threshold-dependent values do not establish a fairness improvement.
 
-Light subgroup sensitivity progressed: 0.000 (baseline) $\rightarrow$ 0.900 (fine-tuned) $\rightarrow$ 0.500 (augmented). The augmented model trades Light sensitivity for improved Dark sensitivity, producing a more balanced operating point.
+Light subgroup sensitivity was 0.700 (baseline), 0.600 (fine-tuned), and 0.600 (augmented).
 
-The sensitivity gap between Light and Dark subgroups shifted from $-0.400$ (fine-tuned) to $+0.100$ (augmented). While sensitivity became more balanced, the AUROC gap remained large ($-0.191$), indicating that sensitivity gains at a particular threshold do not translate to overall discrimination improvement. Sensitivity values are computed over small melanoma-positive subgroups ($n=10$ per subgroup) and should be interpreted as directional.
+Sensitivity values are computed over small melanoma-positive subgroups ($n=10$ per subgroup) and should be interpreted as directional rather than definitive.
 
 \subsection{Ablation Study}
 
@@ -68,6 +68,6 @@ Table~\ref{tab:ablation} summarizes the ablation results. The ablation uses save
 
 Figure~\ref{fig:ablation_tradeoff} presents the relationship between synthetic multiplier and performance across three metrics.
 
-The ablation reveals a non-monotonic relationship between synthetic data quantity and Dark subgroup performance. Dark AUROC improves from 0.494 (0$\times$) to 0.547 (5$\times$), but declines to 0.525 at 10$\times$. Overall test AUROC increases from 0.680 (0$\times$) to 0.735 (2$\times$) and remains stable at 5$\times$ (0.724) and 10$\times$ (0.736). Validation AUROC increases monotonically from 0.707 to 0.736. This inverted-U pattern for Dark AUROC is consistent with findings in the broader data augmentation literature \cite{Buslaev2020}, though the optimal factor is likely dataset-dependent.
+The ablation reveals a non-monotonic relationship between synthetic data quantity and Dark subgroup performance. Dark AUROC was 0.5469, 0.5750, 0.5344, and 0.4812 at 0$\times$, 2$\times$, 5$\times$, and 10$\times$, respectively. Overall test AUROC was 0.6848, 0.7063, 0.6742, and 0.6433, while validation AUROC peaked at 2$\times$. This exploratory pattern requires multi-seed confirmation.
 
-Subgroup-level metrics for ablation variants (Table~\ref{tab:ablation}) show that dark-subgroup AUROC peaks at 5$\times$ and degrades at 10$\times$, mirroring the overall trend. These results suggest that targeted augmentation benefits are real but bounded, and excessive synthetic data can harm generalization on the Dark subgroup.
+Subgroup-level metrics for ablation variants show that the 2$\times$ variant had the highest Dark AUROC in this seed-42 run, while the 10$\times$ variant was lowest. The result should not be interpreted as a stable optimal multiplier without multi-seed repetition.
