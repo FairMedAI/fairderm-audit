@@ -54,7 +54,7 @@ Every claim in `FINAL_RESULTS.md` Section 1 checked against saved files:
 ### Current result: 2× has the highest Dark AUROC in the ablation
 
 - **Source:** `results/ablation/ablation_report.csv`
-- **Status:** 2× Dark AUROC = 0.5750; 0× = 0.5469, 5× = 0.5344, 10× = 0.4812.
+- **Status:** 2× Dark AUROC = 0.5750; 0× = 0.5438, 5× = 0.5344, 10× = 0.4812.
 
 ### Claim 6: 10× degrades observed generalization
 

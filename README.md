@@ -12,7 +12,7 @@ FairDerm is a three-stage pipeline that:
 
 An ablation study sweeps synthetic multipliers (0x/2x/5x/10x) to find the optimal trade-off between overall accuracy and dark-skin sensitivity.
 
-**Key finding:** Standard fine-tuning can *amplify* the AUROC gap (from **-0.131 to -0.284**), while simple photometric augmentation narrows but does not significantly improve Dark AUROC (**-0.284 → -0.191, p=0.429 NS**). This suggests we need GANs or diffusion models for real improvement.
+**Key finding:** Standard fine-tuning can *amplify* the AUROC gap (from **-0.131 to -0.209**), while adding train-only synthetic dark melanomas does not improve Dark AUROC (**gap -0.209 → -0.291**, paired delta **-0.066**, **p=0.962 NS**). This suggests we need GANs or diffusion models for real improvement.
 
 ## Repository Structure
 
@@ -152,7 +152,7 @@ python scripts/check_leakage.py  # must say PASSED overlap 0
 - **Key versions:** PyTorch 2.8.0, torchvision 0.23.0, numpy 2.0.2, Python 3.9.6
 - **Split saved:** `splits/ddi_split_seed42.json` with filenames per partition
 - **Leakage check:** `splits/leakage_report.json` — SHA256 byte-level, synthetic_vs_test=0, synthetic_vs_val=0, synthetic_vs_any_ddi=0
-- **Metrics saved:** `results/metrics_clean.json` (12:17) with all metrics, CIs, p-values + `MORNING_VERIFY.md`
+- **Metrics saved:** `results/metrics_clean.json` (Sep 20 controlled seed-42 run) with all metrics, CIs, p-values + `MORNING_VERIFY.md`
 - **Tables auto-generated:** `python paper_latex/generate_tables.py` reads from metrics_clean.json
 - **Figures auto-generated:** `python paper_latex/generate_figures.py` reads from metrics_clean.json
 - **Config as code:** `configs/config.yaml` is single source of truth for hyperparams
@@ -162,25 +162,25 @@ python scripts/check_leakage.py  # must say PASSED overlap 0
 
 All experiments use Apple Silicon (MPS backend). The MPS backend introduces floating-point non-determinism in certain operations. Exact numerical reproduction on different hardware (CUDA, CPU) is not guaranteed. Results should be replicated on at least one other hardware platform for confirmation.
 
-## Results — Clean Light Run (leakage 0, n=132 test: 42 Light / 42 Dark, 10 mel each)
+## Results — Controlled Seed-42 Run (leakage 0, n=132 test: 42 Light / 42 Dark, 10 mel each)
 
 See [`FINAL_RESULTS.md`](FINAL_RESULTS.md) for the frozen source of truth. See [`results/metrics_clean.json`](results/metrics_clean.json) for machine-readable results with bootstrap CIs and p-values.
 
-**Current clean run (Aug 9 12:17):**
+**Current controlled run (Sep 20, seed 42):**
 
 | Stage | Light AUROC | Dark AUROC | Gap | Overall |
 |-------|-------------|------------|-----|---------|
 | Baseline (partial) | 0.7188 | 0.5875 | -0.1313 | 0.6622 |
-| Fine-tuned | 0.7844 | 0.5000 [0.279–0.733] | -0.2844 | 0.6704 |
-| +Synthetic (290) | 0.7156 [0.529–0.882] | 0.5250 [0.287–0.754] | -0.1906 | 0.6842 |
+| Fine-tuned | 0.7563 | 0.5469 [0.341–0.750] | -0.2094 | 0.6336 |
+| +Synthetic (290) | 0.7719 [0.582–0.925] | 0.4813 [0.276–0.688] | -0.2906 | 0.6395 |
 
-Dark AUROC improvement finetuned→augment: **p=0.429 NS**
+Paired Dark AUROC delta finetuned→augment: **-0.066 (95% bootstrap CI [-0.151, 0.008]), p=0.962 NS**
 
 Key findings:
-- **Fine-tuning amplifies bias:** AUROC gap widens from **-0.131 to -0.284**
-- **Synthetic augmentation narrows but not significantly:** gap **-0.284 → -0.191 (p=0.429 NS)**, Dark 0.500→0.525
-- **Dark AUROC CIs huge:** finetuned 0.500 [0.279–0.733] → final 0.525 [0.287–0.754] with only 10 melanomas per subgroup
-- **Ablation (prior run, not re-run in light pass):** Dark AUROC best at 5x (0.547), degrades at 10x (0.525)
+- **Fine-tuning amplifies bias:** AUROC gap widens from **-0.131 to -0.209**
+- **Synthetic augmentation does not improve Dark AUROC:** gap **-0.209 → -0.291**, Dark 0.547→0.481 (paired delta **-0.066**, p=0.962 NS)
+- **Dark AUROC CIs huge:** finetuned 0.547 [0.341–0.750] → final 0.481 [0.276–0.688] with only 10 melanomas per subgroup
+- **Ablation:** Dark AUROC peaks at 2x (0.575), degrades at 10x (0.481), non-monotonic single-seed pattern
 
 ## Citation
 
@@ -189,6 +189,6 @@ Key findings:
   title={FairDerm: Evaluating and Mitigating Skin-Tone Bias in Melanoma Detection via Synthetic Augmentation},
   author={Gottimukkala, Shanmuka},
   year={2026},
-  note={Working Paper #1, FairMed AI — leakage-free audit, SHA256 verified, gap -0.284→-0.191 p=0.429}
+  note={Working Paper #1, FairMed AI — leakage-free audit, SHA256 verified, gap -0.131→-0.209→-0.291, Dark 0.547→0.481 p=0.962}
 }
 ```

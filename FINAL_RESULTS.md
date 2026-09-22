@@ -102,7 +102,7 @@ per subgroup, the result is preliminary.
 
 2. **Synthetic augmentation did not improve Dark AUROC:** Dark AUROC changed from 0.5469 to 0.4813, with p=0.9620 for the paired comparison.
 
-3. **The ablation was non-monotonic:** Dark AUROC was 0.5469 at 0x, 0.5750 at 2x, 0.5344 at 5x, and 0.4812 at 10x.
+3. **The ablation was non-monotonic:** Dark AUROC was 0.5438 at 0x, 0.5750 at 2x, 0.5344 at 5x, and 0.4812 at 10x.
 
 4. **Claims remain preliminary:** The experiment uses one seed and a test subgroup containing only 10 melanoma cases.
 
