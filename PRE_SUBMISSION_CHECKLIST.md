@@ -38,7 +38,7 @@
 | 13 | All numbers in tables match source JSON/CSV files | ☐ |
 | 14 | Bootstrap CIs labeled as "hardcoded from terminal output" with `% SOURCE:` comments | ☐ |
 | 15 | Overall test metrics (AUROC, Sens, Spec, F1) match `generate_paper_assets.py` values | ☐ |
-| 16 | Threshold 0.1206 documented as origin-unknown in limitations section | ☐ |
+| 16 | Former hardcoded threshold documented as removed in limitations section | ☐ |
 
 ## Language and Tone
 
