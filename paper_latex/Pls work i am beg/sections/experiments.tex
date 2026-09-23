@@ -22,7 +22,7 @@ Bootstrap 95\% confidence intervals for the fine-tuned model are: Light AUROC\,$
 
 \subsection{Synthetic Augmentation}
 
-Adding 290 synthetic dark-skin melanoma images reduced overall test AUROC slightly from 0.634 to 0.640 relative to the fine-tuned checkpoint, but reduced Dark AUROC from 0.547 to 0.481. The Light--Dark AUROC gap widened to $-0.291$. The paired Dark AUROC delta was $-0.066$ with 95\% bootstrap interval $[-0.151,0.008]$ and $p=0.962$. Sensitivity was 0.600 in both Light and Dark subgroups at the stage-specific validation-selected threshold.
+Adding 290 synthetic dark-skin melanoma images increased overall test AUROC slightly from 0.634 to 0.640 [$\Delta$+0.006] relative to fine-tuned, but reduced Dark AUROC from 0.547 to 0.481. Light--Dark gap widened to $-0.291$. Paired Dark delta $-0.066$ [95\% CI $-0.151,0.008$], one-tailed $p=0.962$ [$H_1$: $\Delta>0$, $p=$\,prop(bootstrap $\Delta \leq 0$)]. Sensitivity was 0.600 Light vs 0.500 Dark [gap $-0.100$] at Youden-J threshold [stage-specific].
 
 Bootstrap 95\% CIs are: Light AUROC\,$=$\,0.775\,[0.582--0.925], Dark AUROC\,$=$\,0.481\,[0.276--0.688]. With only 10 melanomas per subgroup, the study is underpowered. Multi-seed repetition, external validation, and clinically meaningful synthetic-image review remain necessary.
 

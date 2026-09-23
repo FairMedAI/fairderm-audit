@@ -17,7 +17,7 @@ The pretrained baseline achieved an overall AUROC of 0.662 on the held-out test 
 
 Fine-tuning on the DDI training split reduced overall AUROC to 0.634 (Table~\ref{tab:main_results}). Light subgroup AUROC was 0.756 and Dark subgroup AUROC was 0.547, widening the inter-group gap from $-0.131$ to $-0.209$. This result shows that standard fine-tuning did not remove the observed disparity.
 
-The addition of synthetic augmentation yielded overall AUROC 0.640 and Dark subgroup AUROC 0.481. The Light--Dark gap widened to $-0.291$. The paired bootstrap comparison gave a Dark AUROC delta of $-0.066$ and $p=0.962$. These findings indicate that simple photometric augmentation from 29 source images did not close the skin-tone performance gap.
+The addition of synthetic augmentation yielded overall AUROC 0.640 and Dark subgroup AUROC 0.481. The Light--Dark gap widened to $-0.291$. The paired bootstrap comparison gave a Dark AUROC delta of $-0.066$ and $p=0.962$ (one-tailed directional, $H_1$: Dark improvement $>0$; $p$\,$=$\,proportion of bootstrap $\Delta \leq 0$). These findings indicate that simple photometric augmentation from 29 source images did not close the skin-tone performance gap.
 
 \subsection{Subgroup Analysis}
 
@@ -34,7 +34,7 @@ Figure~\ref{fig:bootstrap_ci} displays bootstrap confidence intervals for the su
 
 The Dark subgroup exhibited no consistent improvement across stages. AUROC progressed from 0.588 (baseline) to 0.547 (fine-tuned) to 0.481 (augmented), while Light AUROC progressed from 0.719 to 0.756 to 0.772.
 
-Bootstrap confidence intervals (1000 iterations) confirmed the high uncertainty. The fine-tuned Dark AUROC bootstrap CI was $[0.341,\; 0.750]$, and the augmented model Dark AUROC CI was $[0.276,\; 0.688]$. Their overlap and the paired comparison p-value of 0.962 show that augmentation did not significantly improve Dark AUROC.
+Bootstrap confidence intervals (1000 iterations) confirmed the high uncertainty. The fine-tuned Dark AUROC bootstrap CI was $[0.341,\; 0.750]$, and the augmented model Dark AUROC CI was $[0.276,\; 0.688]$. Their overlap and the paired comparison p-value of 0.962 (one-tailed directional, $H_1$: Dark improvement $>0$) show that augmentation did not significantly improve Dark AUROC.
 
 \subsection{Sensitivity Analysis}
 

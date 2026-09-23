@@ -1,0 +1,14 @@
+\begin{table}[htbp]
+\centering
+\caption{Main classification results across pipeline stages on the DDI test set ($n=132$).}
+\label{tab:main_results}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Stage} & Val. AUROC & Test AUROC & Sens. & Spec. & F1 & $\Delta_{\text{AUROC}}$ \\
+\midrule
+Baseline & 0.9650 & 0.662 & 0.600 & 0.660 & 0.472 & -0.131 \\
+Fine-tuned & 0.7787 & 0.634 & 0.571 & 0.588 & 0.421 & -0.209 \\
++Synthetic & 0.7596 & 0.640 & 0.543 & 0.619 & 0.418 & -0.291 \\
+\bottomrule
+\end{tabular}
+\end{table}
