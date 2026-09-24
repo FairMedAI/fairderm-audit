@@ -1,0 +1,65 @@
+\documentclass[11pt]{article}
+
+% --- Packages ---
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage{microtype}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+
+% --- Hyperref setup ---
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!70!black,
+  citecolor=blue!70!black,
+  urlcolor=blue!60!black,
+}
+
+% --- Title ---
+\title{FairDerm: Evaluating and Mitigating Skin-Tone Bias in Melanoma Detection via Synthetic Augmentation}
+
+\author{%
+  Shanmuka Gottimukkala\thanks{Milton High School}
+}
+
+\date{July 2026}
+
+\begin{document}
+
+\maketitle
+
+% --- Abstract ---
+\input{sections/abstract}
+
+% --- Body ---
+\input{sections/introduction}
+\input{sections/methods}
+\input{sections/experiments}
+\input{sections/results}
+\input{sections/discussion}
+\input{sections/limitations}
+
+% --- Tables ---
+\input{tables/tab1_main_results}
+\input{tables/tab2_subgroup_auroc}
+\input{tables/tab3_sensitivity}
+\input{tables/tab4_ablation}
+\input{tables/tab5_training_config}
+\input{tables/tab6_dataset}
+\input{tables/tab7_provenance}
+
+% --- References ---
+\bibliographystyle{plain}
+\bibliography{references}
+
+% --- Appendix ---
+\input{sections/appendix}
+
+\end{document}

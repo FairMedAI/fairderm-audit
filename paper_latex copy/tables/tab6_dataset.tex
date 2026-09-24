@@ -1,0 +1,16 @@
+\begin{table}[htbp]
+\centering
+\caption{Dataset composition and split sizes.}
+\label{tab:dataset}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Dataset} & Total & Train & Val & Test & Notes \\
+\midrule
+HAM10000 & 7{,}818 & 6{,}254 & 1{,}564 & --- & Melanoma/nevus only \\
+DDI & 656 & 393 & 131 & 132 & Stratified by skin tone \\
+DDI Light (test) & --- & --- & --- & 42 & Fitzpatrick I--II \\
+DDI Dark (test) & --- & --- & --- & 42 & Fitzpatrick V--VI \\
+Synthetic & $\sim$290 & $\sim$290 & --- & --- & 29 train dark mel.$\times$10 aug. \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,14 @@
+\begin{table}[htbp]
+\centering
+\caption{Training hyperparameters by pipeline stage. Stages 2 and 3 share identical hyperparams.}
+\label{tab:training_config}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Stage} & LR & Epochs & Batch & pos\_wt & $\lambda$ & Early Stop \\
+\midrule
+Baseline & 0.0003 & 10 & 8 & N/A & 0.0001 & 5/10 \\
+Finetune & 5e-05 & 10 & 16 & 2.9 & 0.0001 & 8/10 \\
+Augment & 5e-05 & 10 & 16 & 2.9 & 0.0001 & 4/10 \\
+\bottomrule
+\end{tabular}
+\end{table}
