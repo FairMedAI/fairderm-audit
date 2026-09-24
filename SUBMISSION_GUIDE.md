@@ -46,21 +46,16 @@ These scripts read from `results/` and write to `paper_latex/`. No model inferen
 | `results/ablation/ablation_report.csv` | Ablation overall metrics | Table 4, Figure 5 |
 | `results/*/config.json` | Hyperparams, val AUROCs | Tables 5–6, Figure 1 |
 | `results/*/training_history.csv` | Epoch-by-epoch training logs | Figure 6 |
-| Terminal output (not saved) | Overall test metrics, bootstrap CIs | Tables 1–2, Figure 4 |
+| `results/metrics_seed42.json` | Overall test metrics, bootstrap CIs, paired Dark AUROC comparison | Tables 1–2, Figure 4 |
 
 ---
 
-## Hardcoded Values (Terminal Output)
+## Metrics provenance
 
-These values appear in `generate_tables.py` and `generate_figures.py` as hardcoded dicts. They are sourced from terminal output and are **not** in any saved file:
-
-| Value | Source | Confidence |
-|-------|--------|------------|
-| Overall test AUROC/Sens/Spec/F1 | `fairderm.py --stage evaluate` stdout | High (matches FINAL_RESULTS.md) |
-| Bootstrap 95% CIs | `fairderm.py --stage evaluate` stdout | High |
-| Overall bootstrap CIs | `fairderm.py --stage evaluate` stdout | High |
-
-To update these if you re-run the pipeline, search the terminal output for `stage_evaluate` results and update the `OVERALL_TEST`, `BOOTSTRAP_CIS`, and `OVERALL_BOOTSTRAP` dicts in `generate_tables.py` and `generate_figures.py`.
+The evaluation stage writes overall test metrics, subgroup metrics, bootstrap
+intervals, thresholds, and the paired Dark AUROC comparison to
+`results/metrics_seed42.json`. The table and figure generators should read this
+file directly; no terminal-output transcription is permitted.
 
 ---
 
@@ -116,7 +111,7 @@ All 12 references were verified via web search on 2026-07-22:
 
 ## Key Wording Corrections
 
-The following wording changes from `FINAL_RESULTS.md` have been applied:
+The following wording changes from earlier drafts have been applied:
 
 | Original | Corrected | Reason |
 |----------|-----------|--------|
@@ -124,7 +119,16 @@ The following wording changes from `FINAL_RESULTS.md` have been applied:
 | "dramatically" | Removed or replaced with "substantially" | Subjective editorial |
 | "completely fails on dark skin" | "achieves no discriminative ability on dark skin (AUROC=0.50)" | More precise |
 | "causes overfitting" (re: 10x) | "degrades generalization" | Interpretation, not proven mechanism |
-| "sweet spot" (re: 5x) | "optimal multiplier of 5×" | Informal language |
+| "sweet spot" (re: 5x) | Removed; current controlled run peaks at 2× | Results changed after rerun |
+
+### Current numerical summary
+
+The controlled seed-42 rerun used batch size 32 for all stages. Overall test
+AUROC was 0.6622 (baseline), 0.6336 (fine-tuned), and 0.6395 (+synthetic).
+Dark subgroup AUROC was 0.5875, 0.5469, and 0.4813, respectively. The paired
+Dark AUROC delta was -0.0663 with p=0.9620. These results are single-seed and
+should be described as preliminary; multi-seed and external validation remain
+future work.
 
 ---
 

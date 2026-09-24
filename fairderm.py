@@ -98,6 +98,15 @@ YAML_CFG = load_yaml_config()
 
 
 def get_device():
+    requested = os.environ.get("FAIRDERM_DEVICE")
+    if requested:
+        if requested == "mps" and hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return torch.device("mps")
+        if requested == "cuda" and torch.cuda.is_available():
+            return torch.device("cuda")
+        if requested == "cpu":
+            return torch.device("cpu")
+        raise ValueError(f"Requested FAIRDERM_DEVICE={requested!r} is unavailable")
     if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
         return torch.device("mps")
     elif torch.cuda.is_available():
@@ -493,6 +502,32 @@ def bootstrap_auroc(y_true, y_score, n=1000, seed=0):
         aucs.append(roc_auc_score(arr_true[idx], arr_score[idx]))
     lo, med, hi = np.percentile(aucs, [2.5, 50, 97.5])
     return float(med), float(lo), float(hi)
+
+
+def paired_bootstrap_auroc_delta(y_true, score_a, score_b, n=1000, seed=0):
+    """Return paired AUROC delta (B - A), CI, and one-sided non-improvement p-value."""
+    rng = np.random.default_rng(seed)
+    y_true = np.asarray(y_true)
+    score_a = np.asarray(score_a)
+    score_b = np.asarray(score_b)
+    deltas = []
+    for _ in range(n):
+        idx = rng.choice(len(y_true), len(y_true), replace=True)
+        labels = y_true[idx]
+        if len(np.unique(labels)) < 2:
+            continue
+        deltas.append(
+            roc_auc_score(labels, score_b[idx]) - roc_auc_score(labels, score_a[idx])
+        )
+    if not deltas:
+        return np.nan, np.nan, np.nan, np.nan
+    deltas = np.asarray(deltas)
+    return (
+        float(np.mean(deltas)),
+        float(np.percentile(deltas, 2.5)),
+        float(np.percentile(deltas, 97.5)),
+        float(np.mean(deltas <= 0)),
+    )
 
 
 def compute_youden_threshold(y_true, y_prob):
@@ -1063,7 +1098,7 @@ def stage_finetune(dry_run=False, num_epochs=10, batch_size=32, resume=False):
         print("\nDDI fine-tuning complete.")
 
 
-def stage_augment(dry_run=False, num_epochs=5, batch_size=32, resume=False):
+def stage_augment(dry_run=False, num_epochs=10, batch_size=32, resume=False):
     print("=" * 60)
     print("STAGE: SYNTHETIC AUGMENTATION")
     print("=" * 60)
@@ -1226,13 +1261,9 @@ def stage_evaluate():
         if name not in val_results:
             continue
         vr = val_results[name]
-        if name == "baseline":
-            thresholds[name] = 0.5
-            print(f"  {name}: threshold = 0.5 (fixed)")
-        else:
-            thr = compute_youden_threshold(vr["label"].values, vr["pred"].values)
-            thresholds[name] = thr
-            print(f"  {name}: threshold = {thr:.4f} (Youden's J on validation)")
+        thr = compute_youden_threshold(vr["label"].values, vr["pred"].values)
+        thresholds[name] = thr
+        print(f"  {name}: threshold = {thr:.4f} (Youden's J on validation)")
 
     all_bootstrap = {}
     for name in ["finetuned", "final"]:
@@ -1258,20 +1289,17 @@ def stage_evaluate():
         dark_fn["group"] = dark_fn["fst"].map(DDI_GROUP_MAP)
         dark_fn = dark_fn[dark_fn["group"] == "Dark"]
 
-        rng = np.random.default_rng(0)
-        diffs = []
-        for _ in range(1000):
-            idx_ft = rng.choice(len(dark_ft), len(dark_ft), replace=True)
-            idx_fn = rng.choice(len(dark_fn), len(dark_fn), replace=True)
-            if len(np.unique(dark_ft["label"].values[idx_ft])) < 2:
-                continue
-            if len(np.unique(dark_fn["label"].values[idx_fn])) < 2:
-                continue
-            auc_ft = roc_auc_score(dark_ft["label"].values[idx_ft], dark_ft["pred"].values[idx_ft])
-            auc_fn = roc_auc_score(dark_fn["label"].values[idx_fn], dark_fn["pred"].values[idx_fn])
-            diffs.append(auc_fn - auc_ft)
-        p_value_dark = float(np.mean(np.array(diffs) <= 0))
-        print(f"\n  p-value for Dark AUROC improvement (finetuned -> augment): {p_value_dark:.4f}")
+        delta_mean, delta_lo, delta_hi, p_value_dark = paired_bootstrap_auroc_delta(
+            dark_ft["label"].values,
+            dark_ft["pred"].values,
+            dark_fn["pred"].values,
+            n=1000,
+            seed=0,
+        )
+        print(
+            f"\n  Paired Dark AUROC delta (augment - finetuned): "
+            f"{delta_mean:.4f} [{delta_lo:.4f}, {delta_hi:.4f}], p={p_value_dark:.4f}"
+        )
 
     if len(test_results) >= 2:
         plt.figure(figsize=(8, 6))
@@ -1300,7 +1328,7 @@ def stage_evaluate():
     if "finetuned" in val_results and "final" in val_results:
         paper_data = {"stages": {}}
         stage_mapping = [
-            ("baseline", "baseline", 0.5),
+            ("baseline", "baseline", thresholds.get("baseline", 0.5)),
             ("finetune", "finetuned", thresholds.get("finetuned", 0.5)),
             ("final_synthetic", "final", thresholds.get("final", 0.5)),
         ]
@@ -1337,7 +1365,7 @@ def stage_evaluate():
             "hyperparams_shared": {"lr": 5e-5, "batch_size": 32, "weight_decay": 1e-4},
             "thresholds": {k: round(v, 6) for k, v in thresholds.items()},
             "threshold_strategy": {
-                "baseline": "fixed_0.5",
+                "baseline": "youden_j_on_validation",
                 "finetuned": "youden_j_on_validation",
                 "final": "youden_j_on_validation",
             },
@@ -1345,13 +1373,22 @@ def stage_evaluate():
             "overall_test": {},
             "bootstrap_ci": all_bootstrap,
             "p_value_dark_improvement": p_value_dark,
+            "paired_dark_auroc_delta": {
+                "mean": delta_mean if "delta_mean" in locals() else None,
+                "lo": delta_lo if "delta_lo" in locals() else None,
+                "hi": delta_hi if "delta_hi" in locals() else None,
+            },
             "note": "AUROC is primary threshold-free metric. Sens/Spec reported at per-stage validation thresholds.",
         }
 
         for key in ["baseline", "finetuned", "final"]:
             if key in test_results:
                 df = test_results[key]
-                overall = compute_metrics(df["label"].values, df["pred"].values)
+                overall = compute_metrics(
+                    df["label"].values,
+                    df["pred"].values,
+                    threshold=thresholds.get(key, 0.5),
+                )
                 metrics_data["overall_test"][key] = {
                     "auroc": round(overall["AUROC"], 4),
                     "sensitivity": round(overall["Sens"], 4),
