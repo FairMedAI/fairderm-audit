@@ -42,3 +42,7 @@ Thumbs.db
 *.toc
 *.synctex.gz
 paper_latex/main.pdf
+
+# Spotlight: never index this tree
+.metadata_never_index
+fairderm_run_env/

@@ -9,11 +9,11 @@
   "train_samples": 6254,
   "val_samples": 1564,
   "reproducibility": {
-    "timestamp": "2026-07-23T17:19:57.045407",
+    "timestamp": "2026-09-20T22:32:05.896539",
     "python_version": "3.9.6 (default, Dec  2 2025, 07:27:58) \n[Clang 17.0.0 (clang-1700.6.3.2)]",
     "os": {
       "system": "Darwin",
-      "release": "25.5.0",
+      "release": "25.6.0",
       "machine": "arm64"
     },
     "pytorch_version": "2.8.0",
@@ -24,15 +24,19 @@
     "command_line_args": [
       "fairderm.py",
       "--stage",
-      "baseline"
+      "baseline",
+      "--batch-size",
+      "32",
+      "--epochs",
+      "10"
     ],
     "working_directory": "/Users/shanmuka/Desktop/FairDerm",
     "git": null
   },
   "lr": 0.0003,
   "epochs": 10,
-  "batch_size": 8,
+  "batch_size": 32,
   "dataset": "HAM10000",
-  "final_best_val_auroc": 0.965,
-  "total_epochs_trained": 5
+  "final_best_val_auroc": 0.965002,
+  "total_epochs_trained": 8
 }
