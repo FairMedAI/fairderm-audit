@@ -1,0 +1,16 @@
+\begin{table}[htbp]
+\centering
+\caption{Subgroup AUROC with 95\% bootstrap confidence intervals (1000 iterations).}
+\label{tab:subgroup_auroc}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Stage} & Light AUROC & Dark AUROC & Gap & Light 95\% CI & Dark 95\% CI \\
+\midrule
+Baseline & 0.7188 & 0.5875 & -0.1313 & --- & --- \\
+Fine-tuned & 0.7563 & 0.5469 & -0.2094 & [0.575, 0.903] & [0.341, 0.750] \\
++Synthetic & 0.7719 & 0.4813 & -0.2906 & [0.582, 0.925] & [0.276, 0.688] \\
+\bottomrule
+\end{tabular}
+\vspace{2pt}
+\small{$^*$ Thresholds differ per stage; AUROC is the primary comparison metric.}
+\end{table}
