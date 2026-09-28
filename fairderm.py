@@ -52,15 +52,60 @@ import albumentations as A
 import yaml
 import hashlib
 
-def compute_sha256_overlap(syn_dir, test_df):
-    """TMLR Requirement: Prove 0 leakage between synthetic and test"""
-    import hashlib
-    test_files = set(test_df["DDI_file"].tolist())
-    # synthetic files are generated, not from DDI, so by construction 0 overlap
-    # but we prove it via filename check + hash
-    syn_files = os.listdir(syn_dir) if os.path.exists(syn_dir) else []
-    overlap = [f for f in syn_files if f in test_files]
-    return {"n_test": len(test_files), "n_syn": len(syn_files), "overlap": len(overlap), "passed": len(overlap)==0}
+def _sha256_file(path, chunk_size=65536):
+    """Stream a SHA-256 digest of the exact bytes on disk."""
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(chunk_size), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+_IMAGE_EXTS = (".jpg", ".jpeg", ".png")
+
+
+def compute_sha256_overlap(syn_dir, heldout_df, ddi_img_dir, split_name="held-out"):
+    """Byte-level SHA-256 leakage check between synthetics and a held-out split.
+
+    A filename comparison is vacuous here: synthetics are re-encoded JPEGs, so
+    they never share a filename with a DDI source. This hashes the actual file
+    bytes on both sides and intersects the digests, which is a real check.
+
+    Also reports the count of byte-identical duplicates *within* the synthetic
+    set, since a non-zero value would mean the augmentation pipeline silently
+    produced repeated images.
+    """
+    heldout_files = sorted(heldout_df["DDI_file"].tolist())
+    heldout_hashes = {}
+    missing = []
+    for fn in heldout_files:
+        path = os.path.join(ddi_img_dir, fn)
+        if os.path.exists(path):
+            heldout_hashes[_sha256_file(path)] = fn
+        else:
+            missing.append(fn)
+
+    syn_files = sorted(
+        f for f in os.listdir(syn_dir) if f.lower().endswith(_IMAGE_EXTS)
+    ) if os.path.exists(syn_dir) else []
+    syn_hashes = {}
+    for f in syn_files:
+        syn_hashes[_sha256_file(os.path.join(syn_dir, f))] = f
+
+    overlap = sorted(set(syn_hashes) & set(heldout_hashes))
+    return {
+        "check": "sha256_exact_bytes",
+        "split": split_name,
+        "n_heldout": len(heldout_files),
+        "n_heldout_hashed": len(heldout_hashes),
+        "n_heldout_missing_on_disk": len(missing),
+        "n_syn": len(syn_files),
+        "n_syn_unique": len(syn_hashes),
+        "n_duplicate_syn": len(syn_files) - len(syn_hashes),
+        "n_overlap": len(overlap),
+        "overlap_synthetic_files": [syn_hashes[h] for h in overlap][:20],
+        "passed": len(overlap) == 0 and not missing,
+    }
 
 def compute_fid_placeholder(real_dir, syn_dir):
     """TMLR: Placeholder for FID - use torch-fidelity in real run"""
@@ -253,6 +298,20 @@ class SyntheticDataset(Dataset):
 def setup_dataloaders(df, img_dir, transform, is_ddi=False, batch_size=8, shuffle=True):
     ds = DermDataset(df, img_dir, transform=transform, is_ddi=is_ddi)
     return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, num_workers=0)
+
+
+def freeze_for_ddi_finetune(model):
+    """Freeze everything except the EfficientNet-B0 head blocks and classifier.
+
+    Shared by Stage 2, Stage 3 and the ablation so all three fine-tuning arms
+    train an identical parameter set (~2.74M trainable).
+    """
+    for param in model.parameters():
+        param.requires_grad = False
+    for name, param in model.named_parameters():
+        if "features.6" in name or "features.7" in name or "classifier" in name:
+            param.requires_grad = True
+    return model
 
 
 def create_model(model_name="efficientnet_b0", pretrained=True):
@@ -687,43 +746,102 @@ def setup_ham10000_data():
     return ham_df, img_dir
 
 
+def _syn_source_index(syn_files, variants_per_source):
+    """Map each synthetic filename to the index of its source lesion.
+
+    Generation writes `variants_per_source` consecutive files per source, so the
+    source ordinal is recoverable as ``index // variants_per_source``.
+    """
+    out = {}
+    for f in syn_files:
+        stem = os.path.splitext(f)[0]
+        tail = stem.rsplit("_", 1)[-1]
+        if not tail.isdigit():
+            raise ValueError(f"Cannot parse source index from synthetic filename: {f}")
+        out[f] = int(tail) // variants_per_source
+    return out
+
+
+def select_balanced_syn_files(syn_files, n_synth, variants_per_source, n_sources):
+    """Pick n_synth synthetics spread evenly over all source lesions.
+
+    A sorted prefix would draw every variant from the first few lesions, so the
+    2x/5x arms would silently test quantity *and* lesion identity at once. This
+    takes a round-robin over sources instead, keeping the arm a clean
+    variants-per-lesion sweep. Returns (selected_files, n_distinct_sources).
+    """
+    by_source = {}
+    for f, src in _syn_source_index(syn_files, variants_per_source).items():
+        by_source.setdefault(src, []).append(f)
+    for v in by_source.values():
+        v.sort()
+
+    source_ids = sorted(by_source)
+    selected = []
+    depth = 0
+    while len(selected) < n_synth:
+        added = False
+        for src in source_ids:
+            if len(selected) >= n_synth:
+                break
+            variants = by_source[src]
+            if depth < len(variants):
+                selected.append(variants[depth])
+                added = True
+        if not added:
+            break
+        depth += 1
+
+    return sorted(selected), len({_syn_source_index(selected, variants_per_source)[f] for f in selected})
+
+
 def run_ablation_study(base_model_path, train_df, val_df, test_df, test_loader,
                        ddi_img_dir, syn_dir, multipliers=(0, 2, 5, 10),
-                       dry_run=False, resume=False):
+                       dry_run=False, resume=False, variants_per_source=10,
+                       epochs=5):
     results_log = []
 
     n_pos = int(train_df["label"].sum())
     n_neg = len(train_df) - n_pos
     pos_weight_val = n_neg / n_pos if n_pos > 0 else 1.0
 
-    # Load all synthetic images available
     all_syn_files = sorted([
         f for f in os.listdir(syn_dir)
-        if f.lower().endswith((".jpg", ".png", ".jpeg"))
+        if f.lower().endswith(_IMAGE_EXTS)
     ]) if os.path.exists(syn_dir) else []
     total_synth = len(all_syn_files)
-    print(f"  Total synthetic images available: {total_synth}")
+    n_sources = max(1, total_synth // variants_per_source)
+    print(f"  Total synthetic images available: {total_synth} "
+          f"({variants_per_source} variants x {n_sources} sources)")
 
     for m in multipliers:
         print(f"\n--- Training Multiplier: {m}x ---")
         model = create_model(pretrained=False)
         model.load_state_dict(torch.load(base_model_path, weights_only=True))
 
-        # Calculate how many synthetic images to use for this multiplier
-        # 0x: 0 synth, 2x: ~58, 5x: ~145, 10x: ~290 (all available)
-        n_synth = min(int(m * 29), total_synth) if m > 0 else 0  # 29 = train dark mel count
+        # Match Stage 3: only features.6, features.7 and classifier are trainable.
+        # Without this the ablation trains ~4.01M params vs Stage 3's ~2.74M,
+        # so the two arms are not comparable and the peak is not attributable
+        # to synthetic count.
+        freeze_for_ddi_finetune(model)
+        n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"  Trainable params: {n_trainable:,} (frozen {sum(p.numel() for p in model.parameters() if not p.requires_grad):,})")
+
+        n_synth = min(m * n_sources, total_synth) if m > 0 else 0
         syn_subset_dir = None
+        n_distinct_sources = 0
 
         if n_synth > 0 and total_synth > 0:
-            # Select first n_synth synthetic images
-            selected_syn = all_syn_files[:n_synth]
+            selected_syn, n_distinct_sources = select_balanced_syn_files(
+                all_syn_files, n_synth, variants_per_source, n_sources,
+            )
+            print(f"  {n_synth} synthetics from {n_distinct_sources}/{n_sources} source lesions")
             syn_subset_dir = os.path.join(syn_dir, f"_ablation_{m}x")
+            if os.path.exists(syn_subset_dir):
+                shutil.rmtree(syn_subset_dir, ignore_errors=True)
             os.makedirs(syn_subset_dir, exist_ok=True)
             for sf in selected_syn:
-                src = os.path.join(syn_dir, sf)
-                dst = os.path.join(syn_subset_dir, sf)
-                if not os.path.exists(dst):
-                    os.symlink(src, dst)
+                os.symlink(os.path.join(syn_dir, sf), os.path.join(syn_subset_dir, sf))
 
             base_ds = DermDataset(train_df, ddi_img_dir, train_transform, True)
             syn_ds = SyntheticDataset(syn_subset_dir)
@@ -755,18 +873,21 @@ def run_ablation_study(base_model_path, train_df, val_df, test_df, test_loader,
         with TeeLogger(os.path.join(m_dir, "train.log")):
             model, history = train_model(
                 model, train_loader, val_loader_local, criterion, optimizer, scheduler,
-                num_epochs=5, patience=3, save_path=save_path, dry_run=dry_run,
+                num_epochs=epochs, patience=3, save_path=save_path, dry_run=dry_run,
                 experiment_dir=m_dir, resume=resume,
             )
 
         probs, labels, fsts = get_preds(model, test_loader, device)
         overall = compute_metrics(labels, probs)
         overall["multiplier"] = m
+        overall["n_synth_used"] = n_synth
+        overall["n_distinct_sources"] = n_distinct_sources
+        overall["n_trainable_params"] = n_trainable
 
         test_df_copy = test_df.copy()
         test_df_copy["pred"] = probs
         test_df_copy["group"] = test_df_copy["skin_tone"].map(DDI_GROUP_MAP)
-        for grp in ["Light", "Dark"]:
+        for grp in ["Light", "Medium", "Dark"]:
             sub = test_df_copy[test_df_copy["group"] == grp]
             if len(sub) > 0:
                 grp_auroc = roc_auc_score(sub["label"], sub["pred"]) if len(sub["label"].unique()) > 1 else 0.5
@@ -782,9 +903,12 @@ def run_ablation_study(base_model_path, train_df, val_df, test_df, test_loader,
 
         cfg = build_experiment_config(
             f"ablation_{m}x", train_df, val_df,
-            lr=5e-5, epochs=5, batch_size=32,
+            lr=5e-5, epochs=epochs, batch_size=32,
             pos_weight=round(pos_weight_val, 4), weight_decay=1e-4,
             multiplier=m, n_synth_used=n_synth,
+            n_distinct_sources=n_distinct_sources,
+            n_trainable_params=n_trainable,
+            freeze_config="features.6,features.7,classifier",
             combined_size=len(combined),
         )
         save_experiment(m_dir, cfg, history, checkpoint_path=save_path, dry_run=dry_run)
@@ -983,6 +1107,65 @@ def stage_sanity():
     print("=" * 60)
 
 
+CANONICAL_BASELINE_CKPT = "fairderm_ham_baseline.pth"
+
+
+def _prepare_ham10000():
+    """Load HAM10000 and restrict to images actually present on disk.
+
+    Separated from training so a multi-seed run pays the extraction/scan cost once
+    instead of once per seed.
+    """
+    ham_df, img_dir = setup_ham10000_data()
+    existing = {f.replace(".jpg", "") for f in os.listdir(img_dir) if f.endswith(".jpg")}
+    ham_df = ham_df[ham_df["image_id"].isin(existing)].copy()
+    print(f"  {len(ham_df)} images found on disk")
+    return ham_df, img_dir
+
+
+def train_baseline_model(ham_df, img_dir, seed, save_path, exp_dir,
+                         num_epochs=10, batch_size=8, dry_run=False, resume=False):
+    """Train the HAM10000 Stage-1 baseline for one seed.
+
+    Writes only to `save_path`; never touches the canonical checkpoint.
+    """
+    train_loader, val_loader, ham_train_df, ham_val_df = _ham_loaders(
+        ham_df, img_dir, seed, batch_size
+    )
+    model = create_model(pretrained=False)
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", patience=2, factor=0.5)
+
+    print(f"\n  Training {num_epochs} epochs -> {save_path}")
+    model, history = train_model(
+        model, train_loader, val_loader, criterion, optimizer, scheduler,
+        num_epochs=num_epochs, patience=3, save_path=save_path,
+        dry_run=dry_run, experiment_dir=exp_dir, resume=resume,
+    )
+    cfg = build_experiment_config(
+        "baseline", ham_train_df, ham_val_df,
+        lr=3e-4, epochs=num_epochs, batch_size=batch_size, dataset="HAM10000",
+        seed=seed,
+    )
+    save_experiment(exp_dir, cfg, history, checkpoint_path=save_path, dry_run=dry_run)
+    return model, history
+
+
+def _ham_loaders(ham_df, img_dir, seed, batch_size):
+    ham_train_df, ham_val_df = train_test_split(
+        ham_df, test_size=0.2, stratify=ham_df["label"], random_state=seed,
+    )
+    print_training_summary(
+        ham_train_df, ham_val_df, batch_size=batch_size, lr=3e-4, is_ddi=False,
+    )
+    train_loader = setup_dataloaders(ham_train_df, img_dir, train_transform, batch_size=batch_size)
+    val_loader = setup_dataloaders(
+        ham_val_df, img_dir, val_test_transform, batch_size=batch_size, shuffle=False,
+    )
+    return train_loader, val_loader, ham_train_df, ham_val_df
+
+
 def stage_baseline(dry_run=False, num_epochs=10, batch_size=8, resume=False):
     print("=" * 60)
     print("STAGE: HAM10000 BASELINE TRAINING")
@@ -993,43 +1176,12 @@ def stage_baseline(dry_run=False, num_epochs=10, batch_size=8, resume=False):
 
     with TeeLogger(os.path.join(exp_dir, "train.log")):
         set_seed(CONFIG["SEED"])
-        ham_df, img_dir = setup_ham10000_data()
-
-        existing = {f.replace(".jpg", "") for f in os.listdir(img_dir) if f.endswith(".jpg")}
-        ham_df = ham_df[ham_df["image_id"].isin(existing)].copy()
-        print(f"  {len(ham_df)} images found on disk")
-
-        ham_train_df, ham_val_df = train_test_split(
-            ham_df, test_size=0.2, stratify=ham_df["label"], random_state=CONFIG["SEED"],
+        ham_df, img_dir = _prepare_ham10000()
+        save_path = os.path.join(CONFIG["CHECKPOINT_DIR"], CANONICAL_BASELINE_CKPT)
+        train_baseline_model(
+            ham_df, img_dir, CONFIG["SEED"], save_path, exp_dir,
+            num_epochs=num_epochs, batch_size=batch_size, dry_run=dry_run, resume=resume,
         )
-
-        print_training_summary(
-            ham_train_df, ham_val_df, batch_size=batch_size, lr=3e-4, is_ddi=False,
-        )
-
-        train_loader = setup_dataloaders(ham_train_df, img_dir, train_transform, batch_size=batch_size)
-        val_loader = setup_dataloaders(
-            ham_val_df, img_dir, val_test_transform, batch_size=batch_size, shuffle=False,
-        )
-
-        model = create_model(pretrained=True)
-        criterion = nn.BCEWithLogitsLoss()
-        optimizer = optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", patience=2, factor=0.5)
-
-        save_path = os.path.join(CONFIG["CHECKPOINT_DIR"], "fairderm_ham_baseline.pth")
-        print(f"\n  Training {num_epochs} epochs -> {save_path}")
-        model, history = train_model(
-            model, train_loader, val_loader, criterion, optimizer, scheduler,
-            num_epochs=num_epochs, patience=3, save_path=save_path,
-            dry_run=dry_run, experiment_dir=exp_dir, resume=resume,
-        )
-
-        cfg = build_experiment_config(
-            "baseline", ham_train_df, ham_val_df,
-            lr=3e-4, epochs=num_epochs, batch_size=batch_size, dataset="HAM10000",
-        )
-        save_experiment(exp_dir, cfg, history, checkpoint_path=save_path, dry_run=dry_run)
         print("\nHAM10000 baseline complete.")
 
 
@@ -1060,7 +1212,7 @@ def stage_finetune(dry_run=False, num_epochs=10, batch_size=32, resume=False):
             val_df, ddi_img_dir, val_test_transform, is_ddi=True, batch_size=batch_size, shuffle=False,
         )
 
-        model = create_model(pretrained=True)
+        model = create_model(pretrained=False)
         baseline_path = os.path.join(CONFIG["CHECKPOINT_DIR"], "fairderm_ham_baseline.pth")
         if os.path.exists(baseline_path):
             model.load_state_dict(torch.load(baseline_path, weights_only=True))
@@ -1068,11 +1220,10 @@ def stage_finetune(dry_run=False, num_epochs=10, batch_size=32, resume=False):
         else:
             print(f"  WARNING: {baseline_path} not found — training from ImageNet weights.")
 
-        for param in model.parameters():
-            param.requires_grad = False
-        for name, param in model.named_parameters():
-            if "features.6" in name or "features.7" in name or "classifier" in name:
-                param.requires_grad = True
+        freeze_for_ddi_finetune(model)
+        n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"  Trainable params: {n_trainable:,} "
+              f"(frozen {sum(p.numel() for p in model.parameters() if not p.requires_grad):,})")
 
         criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight_val]).to(device))
         optimizer = optim.AdamW(
@@ -1118,13 +1269,17 @@ def stage_augment(dry_run=False, num_epochs=10, batch_size=32, resume=False):
         print(f"  Found {len(dark_mel)} TRAIN dark-skin melanomas (source for synthetics)")
         # TMLR LEAKAGE PROOF
         _, _, test_df_proof = _make_splits(ddi_df)
-        leakage_check = compute_sha256_overlap(syn_dir, test_df_proof)
-        print(f"  [TMLR LEAKAGE CHECK] Test={leakage_check['n_test']} Syn={leakage_check['n_syn']} Overlap={leakage_check['overlap']} PASSED={leakage_check['passed']}")
-        assert leakage_check['passed'], "Leakage detected! Synthetic overlaps test"
-
 
         existing_syn = [f for f in os.listdir(syn_dir) if f.lower().endswith((".jpg", ".png", ".jpeg"))]
         if len(existing_syn) == 0 and not dry_run:
+            # Remove stale ablation symlink directories that might have been created earlier
+            for name in os.listdir(syn_dir):
+                subpath = os.path.join(syn_dir, name)
+                if os.path.isdir(subpath) and name.startswith("_ablation_"):
+                    try:
+                        shutil.rmtree(subpath)
+                    except Exception:
+                        pass
             alb_transform = A.Compose([
                 A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.8),
                 A.HueSaturationValue(hue_shift_limit=10, sat_shift_limit=20, val_shift_limit=15, p=0.7),
@@ -1133,7 +1288,7 @@ def stage_augment(dry_run=False, num_epochs=10, batch_size=32, resume=False):
                 A.RandomRotate90(p=0.5),
                 A.HorizontalFlip(p=0.5),
                 A.Resize(224, 224),
-            ])
+            ], seed=CONFIG["SEED"])
             count = 0
             for _, row in tqdm(dark_mel.iterrows(), total=len(dark_mel), desc="Generating"):
                 img_path = os.path.join(ddi_img_dir, row["DDI_file"])
@@ -1150,12 +1305,32 @@ def stage_augment(dry_run=False, num_epochs=10, batch_size=32, resume=False):
         else:
             print(f"  Synthetic images already exist ({len(existing_syn)} files)")
 
+        # TMLR LEAKAGE PROOF (after generation; byte-level)
+        leakage_check = compute_sha256_overlap(
+            syn_dir,
+            test_df_proof,
+            ddi_img_dir,
+            split_name="test",
+        )
+        print(
+            "  [TMLR LEAKAGE CHECK] test=%d syn=%d syn_unique=%d dup_syn=%d overlap=%d PASSED=%s"
+            % (
+                leakage_check["n_heldout"],
+                leakage_check["n_syn"],
+                leakage_check["n_syn_unique"],
+                leakage_check["n_duplicate_syn"],
+                leakage_check["n_overlap"],
+                leakage_check["passed"],
+            )
+        )
+        assert leakage_check["passed"], "Leakage detected! Synthetic overlaps test"
+
         n_pos = int(train_df["label"].sum())
         n_neg = len(train_df) - n_pos
         pos_weight_val = n_neg / n_pos if n_pos > 0 else 1.0
         print(f"  Dynamic pos_weight: {pos_weight_val:.2f} (n_neg={n_neg}, n_pos={n_pos})")
 
-        model = create_model(pretrained=True)
+        model = create_model(pretrained=False)
         finetuned_path = os.path.join(CONFIG["CHECKPOINT_DIR"], "fairderm_ddi_finetuned.pth")
         if os.path.exists(finetuned_path):
             model.load_state_dict(torch.load(finetuned_path, weights_only=True))
@@ -1163,11 +1338,10 @@ def stage_augment(dry_run=False, num_epochs=10, batch_size=32, resume=False):
         else:
             print(f"  WARNING: {finetuned_path} not found — training from ImageNet weights.")
 
-        for param in model.parameters():
-            param.requires_grad = False
-        for name, param in model.named_parameters():
-            if "features.6" in name or "features.7" in name or "classifier" in name:
-                param.requires_grad = True
+        freeze_for_ddi_finetune(model)
+        n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"  Trainable params: {n_trainable:,} "
+              f"(frozen {sum(p.numel() for p in model.parameters() if not p.requires_grad):,})")
 
         base_ds = DermDataset(train_df, ddi_img_dir, transform=train_transform, is_ddi=True)
         syn_ds = SyntheticDataset(syn_dir)
@@ -1273,7 +1447,7 @@ def stage_evaluate():
         df["group"] = df["fst"].map(DDI_GROUP_MAP)
         all_bootstrap[name] = {}
         print(f"\n  {name.title()} — Bootstrap CIs (test):")
-        for grp in ["Light", "Dark"]:
+        for grp in ["Light", "Medium", "Dark"]:
             sub = df[df["group"] == grp]
             if len(sub) > 0:
                 med, lo, hi = bootstrap_auroc(sub["label"].values, sub["pred"].values, n=1000, seed=0)
@@ -1338,7 +1512,7 @@ def stage_evaluate():
             test_results[key] = test_results[key].copy()
             test_results[key]["group"] = test_results[key]["fst"].map(DDI_GROUP_MAP)
             paper_data["stages"][stage_label] = {}
-            for grp in ["Light", "Dark"]:
+            for grp in ["Light", "Medium", "Dark"]:
                 paper_data["stages"][stage_label][grp] = get_metrics(
                     test_results[key], grp, thresh,
                 )
@@ -1356,8 +1530,10 @@ def stage_evaluate():
             "split_sizes": {"train": len(train_df), "val": len(val_df), "test": len(test_df)},
             "test_subgroup_sizes": {
                 "light": int((test_df["skin_tone"] == 12).sum()),
+                "medium": int((test_df["skin_tone"] == 34).sum()),
                 "dark": int((test_df["skin_tone"] == 56).sum()),
                 "light_melanoma": int(test_df[(test_df["skin_tone"] == 12) & (test_df["label"] == 1)].shape[0]),
+                "medium_melanoma": int(test_df[(test_df["skin_tone"] == 34) & (test_df["label"] == 1)].shape[0]),
                 "dark_melanoma": int(test_df[(test_df["skin_tone"] == 56) & (test_df["label"] == 1)].shape[0]),
             },
             "synthetic_source": "train_dark_mel_only",

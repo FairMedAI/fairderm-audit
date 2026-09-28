@@ -4,23 +4,25 @@
 Replaces the single-seed (42) claim with a 5-seed mean +/- SD for the
 Dark AUROC delta, mirroring fairderm.py stages 2/3 exactly.
 
-For each seed:
+For each seed the full three-stage pipeline is retrained end to end, so the
+reported SD covers Stage-1 training variance too rather than only the DDI split:
   1. New 60/20/20 DDI split stratified by label x skin_tone
-     (seed 42 reuses splits/ddi_split_seed42.json verbatim; new seed files
-     are saved as splits/ddi_split_seed{seed}.json).
-  2. The Stage-1 HAM10000 checkpoint (models/fairderm_ham_baseline.pth) is
-     REUSED without retraining; it is only re-evaluated on each seed's test.
-  3. Stage-2 fine-tune on that seed's train split (freeze features.0-5).
+      (seed 42 reuses splits/ddi_split_seed42.json verbatim; new seed files
+      are saved as splits/ddi_split_seed{seed}.json).
+  2. Stage-1 HAM10000 baseline is RETRAINED for that seed and written to
+      results/multiseed/seed{seed}/fairderm_ham_baseline_seed{seed}.pth.
+      models/fairderm_ham_baseline.pth is never written by this script.
+  3. Stage-2 fine-tune on that seed's train split (features.0-5 frozen).
   4. Generate 290 synthetic dark-skin melanomas (29 x 10 variants) into
-     results/multiseed/seed{seed}_synthetics/ and prove SHA256 byte-level
-     zero overlap vs that seed's val + test.
+      results/multiseed/seed{seed}/synthetics/ and prove SHA256 byte-level
+      zero overlap vs that seed's val + test.
   5. Stage-3: train from the fine-tuned checkpoint on train + synthetics.
-  6. Evaluate on that seed's test set: overall/Light/Dark AUROC, gap,
-     Light/Dark sensitivity/specificity, bootstrap 95% CIs, and the paired
-     bootstrap Dark AUROC delta (augment - finetuned, one-tailed p).
+  6. Evaluate on that seed's test set: overall/Light/Medium/Dark AUROC, gap,
+      subgroup sensitivity/specificity, bootstrap 95% CIs, and the paired
+      bootstrap Dark AUROC delta (augment - finetuned, one-tailed p).
 
-Per-seed outputs: results/multiseed/seed{seed}.log, seed{seed}_metrics.json,
-seed{seed}_finetuned.pt, seed{seed}_augmented.pt, seed{seed}_synthetics/
+Per-seed outputs: results/multiseed/seed{seed}.log,
+results/multiseed/metrics_seed{seed}.json, results/multiseed/seed{seed}/*.pt
 Summary: results/multiseed_summary.csv and results/multiseed_summary.json
 """
 
@@ -52,6 +54,9 @@ from fairderm import (
     TeeLogger,
     device,
     set_seed,
+    _prepare_ham10000,
+    train_baseline_model,
+    freeze_for_ddi_finetune,
     DermDataset,
     SyntheticDataset,
     bootstrap_auroc,
@@ -70,18 +75,37 @@ from sklearn.model_selection import train_test_split
 
 import cv2
 
-COLS = [
+AUROC_COLS = [
     "overall_baseline",
     "overall_finetuned",
     "overall_synthetic",
+    "light_finetuned",
+    "light_synthetic",
+    "medium_finetuned",
+    "medium_synthetic",
     "dark_finetuned",
     "dark_synthetic",
     "dark_delta",
     "gap_finetuned",
     "gap_synthetic",
-    "light_finetuned",
-    "light_synthetic",
 ]
+
+OPR_COLS = [
+    "overall_sens_finetuned",
+    "overall_sens_synthetic",
+    "overall_spec_finetuned",
+    "overall_spec_synthetic",
+    "light_sens_synthetic",
+    "light_spec_synthetic",
+    "dark_sens_synthetic",
+    "dark_spec_synthetic",
+]
+
+COLS = AUROC_COLS + OPR_COLS
+
+# Every COLS entry gets a mean, SD and a seed-level percentile bootstrap 95% CI,
+# so the CSV and JSON summaries cannot disagree on coverage.
+CI_TARGETS = [(c, f"{c}_ci95_lo", f"{c}_ci95_hi") for c in COLS]
 
 SEED42 = 42
 
@@ -154,7 +178,8 @@ def get_or_make_split(seed, ddi_df):
     return train_df, val_df, test_df, split_data
 
 
-def build_albumentations():
+def build_albumentations(seed=42):
+    """Synthetic transform, seeded so a seed's images are byte-reproducible."""
     return A.Compose([
         A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.8),
         A.HueSaturationValue(hue_shift_limit=10, sat_shift_limit=20, val_shift_limit=15, p=0.7),
@@ -163,14 +188,14 @@ def build_albumentations():
         A.RandomRotate90(p=0.5),
         A.HorizontalFlip(p=0.5),
         A.Resize(224, 224),
-    ])
+    ], seed=seed)
 
 
-def generate_synthetics(dark_mel_df, ddi_img_dir, syn_dir, variants=10):
+def generate_synthetics(dark_mel_df, ddi_img_dir, syn_dir, variants=10, seed=42):
     if os.path.isdir(syn_dir):
         shutil.rmtree(syn_dir)
     os.makedirs(syn_dir, exist_ok=True)
-    alb = build_albumentations()
+    alb = build_albumentations(seed=seed)
     count = 0
     for i, (_, row) in enumerate(dark_mel_df.iterrows()):
         img_path = os.path.join(ddi_img_dir, row["DDI_file"])
@@ -211,12 +236,6 @@ def sha256_leak_check(syn_dir, val_files, test_files, ddi_img_dir):
     }
 
 
-def load_checkpoint(path):
-    model = create_model(pretrained=False)
-    model.load_state_dict(torch.load(path, weights_only=True))
-    return model
-
-
 def subgroup_auroc(labels, probs, mask):
     y, p = np.asarray(labels)[mask], np.asarray(probs)[mask]
     if len(np.unique(y)) < 2:
@@ -246,10 +265,15 @@ def stage_eval(model, val_loader, test_loader, n_bootstrap):
     t_probs, t_labels, t_fsts = get_preds(model, test_loader, device)
 
     overall = compute_metrics(t_labels, t_probs, threshold=v_thr)
-    light_mask = t_fsts == 12
-    dark_mask = t_fsts == 56
-    dark_auroc = subgroup_auroc(t_labels, t_probs, dark_mask)
-    light_auroc = subgroup_auroc(t_labels, t_probs, light_mask)
+    masks = {code: (t_fsts == code) for code in DDI_GROUP_MAP}
+    aurocs = {
+        name: subgroup_auroc(t_labels, t_probs, mask)
+        for name, mask in zip(DDI_GROUP_MAP.values(), masks.values())
+    }
+    opr = {
+        name: subgroup_sens_spec(t_labels, t_probs, mask, v_thr)
+        for name, mask in zip(DDI_GROUP_MAP.values(), masks.values())
+    }
 
     m = {
         "val_threshold": float(v_thr),
@@ -257,26 +281,27 @@ def stage_eval(model, val_loader, test_loader, n_bootstrap):
         "overall_sens": float(overall["Sens"]),
         "overall_spec": float(overall["Spec"]),
         "overall_f1": float(overall["F1"]),
-        "light_auroc": light_auroc,
-        "dark_auroc": dark_auroc,
-        "gap_dark_minus_light": round(dark_auroc - light_auroc, 4),
-        "light_sens": subgroup_sens_spec(t_labels, t_probs, light_mask, v_thr)[0],
-        "light_spec": subgroup_sens_spec(t_labels, t_probs, light_mask, v_thr)[1],
-        "dark_sens": subgroup_sens_spec(t_labels, t_probs, dark_mask, v_thr)[0],
-        "dark_spec": subgroup_sens_spec(t_labels, t_probs, dark_mask, v_thr)[1],
+        "light_auroc": aurocs["Light"],
+        "medium_auroc": aurocs["Medium"],
+        "dark_auroc": aurocs["Dark"],
+        "gap_dark_minus_light": round(aurocs["Dark"] - aurocs["Light"], 4),
+    }
+    for name in ("Light", "Medium", "Dark"):
+        m[f"{name.lower()}_sens"] = opr[name][0]
+        m[f"{name.lower()}_spec"] = opr[name][1]
+    m["subgroup_n"] = {
+        name: int(mask.sum()) for name, mask in zip(DDI_GROUP_MAP.values(), masks.values())
     }
     m["overall_auroc_ci"] = safe_bootstrap_auroc(t_labels, t_probs, n_bootstrap)
-    m["light_auroc_ci"] = safe_bootstrap_auroc(t_labels[light_mask], t_probs[light_mask], n_bootstrap)
-    m["dark_auroc_ci"] = safe_bootstrap_auroc(t_labels[dark_mask], t_probs[dark_mask], n_bootstrap)
+    for name, mask in zip(DDI_GROUP_MAP.values(), masks.values()):
+        m[f"{name.lower()}_auroc_ci"] = safe_bootstrap_auroc(
+            t_labels[mask], t_probs[mask], n_bootstrap
+        )
     return m, t_probs, t_labels, t_fsts
 
 
-def freeze_for_finetune(model):
-    for param in model.parameters():
-        param.requires_grad = False
-    for name, param in model.named_parameters():
-        if "features.6" in name or "features.7" in name or "classifier" in name:
-            param.requires_grad = True
+def count_trainable(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
 def paired_dark_delta(labels, p_ft, p_aug, dark_mask, n):
@@ -313,6 +338,9 @@ def _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args):
     print(f"SEED {seed} — started {time.strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 70)
 
+    seed_dir = os.path.join(results_dir, f"seed{seed}")
+    os.makedirs(seed_dir, exist_ok=True)
+
     train_df, val_df, test_df, split_data = get_or_make_split(seed, ddi_df)
     counts = split_data["counts"]
     print(f"Split: train={counts['train']} val={counts['val']} test={counts['test']} "
@@ -336,24 +364,29 @@ def _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args):
         batch_size=args.batch_size, shuffle=False, num_workers=0,
     )
 
-    baseline_path = os.path.join(PROJECT_ROOT, "models", "fairderm_ham_baseline.pth")
-    if not os.path.exists(baseline_path):
-        raise FileNotFoundError(f"Baseline checkpoint missing: {baseline_path}")
+    baseline_path = os.path.join(seed_dir, f"fairderm_ham_baseline_seed{seed}.pth")
+    print(f"\n[Stage 1: train HAM10000 baseline for seed {seed}] -> {baseline_path}")
+    ham_df, ham_img_dir = _prepare_ham10000()
+    baseline_model, baseline_history = train_baseline_model(
+        ham_df, ham_img_dir, seed, baseline_path, seed_dir,
+        num_epochs=args.baseline_epochs, batch_size=args.baseline_batch_size,
+    )
+    n_trainable_s1 = count_trainable(baseline_model)
+    print(f"  Stage-1 trainable params: {n_trainable_s1:,}")
 
-    print(f"\n[Stage: eval baseline (REUSED, not retrained)] {baseline_path}")
     base_metrics, _, _, _ = stage_eval(
-        load_checkpoint(baseline_path), val_loader, test_loader, args.bootstrap
+        baseline_model, val_loader, test_loader, args.bootstrap
     )
     print(f"  baseline overall_auroc={base_metrics['overall_auroc']:.4f} "
           f"dark_auroc={base_metrics['dark_auroc']:.4f} "
           f"light_auroc={base_metrics['light_auroc']:.4f}")
 
-    print(f"\n[Stage: finetune] lr={args.lr} bs={args.batch_size} epochs={args.epochs} "
+    print(f"\n[Stage 2: finetune] lr={args.lr} bs={args.batch_size} epochs={args.epochs} "
           f"patience={args.patience} freeze=features.0-5")
-    model = create_model(pretrained=True)
+    model = create_model(pretrained=False)
     model.load_state_dict(torch.load(baseline_path, weights_only=True))
-    print("  Loaded baseline weights into finetune model")
-    freeze_for_finetune(model)
+    print("  Loaded this seed's baseline weights into finetune model")
+    freeze_for_ddi_finetune(model)
     criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight_val]).to(device))
     optimizer = optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr, weight_decay=1e-4
@@ -361,11 +394,11 @@ def _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args):
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode="max", factor=0.5, patience=2
     )
-    ft_path = os.path.join(results_dir, f"seed{seed}_finetuned.pt")
+    ft_path = os.path.join(seed_dir, "finetuned.pt")
     model, ft_history = train_model(
         model, train_loader, val_loader, criterion, optimizer, scheduler,
         num_epochs=args.epochs, patience=args.patience, save_path=ft_path,
-        experiment_dir=results_dir,
+        experiment_dir=seed_dir,
     )
     print(f"  Finetuned checkpoint -> {ft_path} (epochs used: {len(ft_history)})")
 
@@ -377,10 +410,13 @@ def _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args):
           f"light={ft_metrics['light_auroc']:.4f} "
           f"gap={ft_metrics['gap_dark_minus_light']:.4f}")
 
-    print("\n[Stage: synthetics]")
+    print("\n[Stage 3 prep: synthetics]")
     dark_mel = train_df[(train_df["skin_tone"] == 56) & (train_df["malignant"] == 1)]
-    syn_dir = os.path.join(results_dir, f"seed{seed}_synthetics")
-    syn_files = generate_synthetics(dark_mel, ddi_img_dir, syn_dir, variants=10)
+    n_sources = len(dark_mel)
+    syn_dir = os.path.join(seed_dir, "synthetics")
+    syn_files = generate_synthetics(
+        dark_mel, ddi_img_dir, syn_dir, variants=10, seed=seed
+    )
     leak = sha256_leak_check(
         syn_dir,
         val_df["DDI_file"].tolist(),
@@ -392,11 +428,11 @@ def _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args):
     if not leak["passed"]:
         raise RuntimeError("SHA256 overlap detected between synthetics and val/test")
 
-    print(f"\n[Stage: augment] train({len(train_df)}) + synthetic({len(syn_files)})")
-    model2 = create_model(pretrained=True)
+    print(f"\n[Stage 3: augment] train({len(train_df)}) + synthetic({len(syn_files)})")
+    model2 = create_model(pretrained=False)
     model2.load_state_dict(torch.load(ft_path, weights_only=True))
     print("  Loaded finetuned weights into augment model")
-    freeze_for_finetune(model2)
+    freeze_for_ddi_finetune(model2)
     base_ds = DermDataset(train_df, ddi_img_dir, transform=train_transform, is_ddi=True)
     syn_ds = SyntheticDataset(syn_dir)
     combined_train = ConcatDataset([base_ds, syn_ds])
@@ -408,11 +444,11 @@ def _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args):
         optimizer2, mode="max", factor=0.5, patience=2
     )
     criterion2 = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight_val]).to(device))
-    aug_path = os.path.join(results_dir, f"seed{seed}_augmented.pt")
+    aug_path = os.path.join(seed_dir, "augmented.pt")
     model2, aug_history = train_model(
         model2, combined_loader, val_loader, criterion2, optimizer2, scheduler2,
         num_epochs=args.epochs, patience=args.patience, save_path=aug_path,
-        experiment_dir=results_dir,
+        experiment_dir=seed_dir,
     )
     print(f"  Augmented checkpoint -> {aug_path} (epochs used: {len(aug_history)})")
 
@@ -440,19 +476,27 @@ def _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args):
         "split_sizes": counts,
         "test_subgroup_sizes": {
             "light": int((test_df["skin_tone"] == 12).sum()),
+            "medium": int((test_df["skin_tone"] == 34).sum()),
             "dark": int((test_df["skin_tone"] == 56).sum()),
             "light_melanoma": int(((test_df["skin_tone"] == 12) & (test_df["label"] == 1)).sum()),
+            "medium_melanoma": int(((test_df["skin_tone"] == 34) & (test_df["label"] == 1)).sum()),
             "dark_melanoma": int(((test_df["skin_tone"] == 56) & (test_df["label"] == 1)).sum()),
         },
         "pos_weight_dynamic": round(pos_weight_val, 4),
         "hyperparams_shared": {
+            "baseline_lr": 3e-4,
+            "baseline_epochs": args.baseline_epochs,
+            "baseline_batch_size": args.baseline_batch_size,
+            "baseline_retrained_per_seed": True,
             "lr": args.lr,
             "epochs": args.epochs,
             "batch_size": args.batch_size,
             "weight_decay": 1e-4,
             "patience": args.patience,
             "freeze_layers": "features.6,features.7,classifier",
-            "synthetic_source": "train_dark_mel_only (29 dark melanomas x 10 variants)",
+            "n_trainable_params_stage2_3": count_trainable(model2),
+            "n_trainable_params_stage1": n_trainable_s1,
+            "synthetic_source": f"train_dark_mel_only ({n_sources} dark melanomas x 10 variants)",
         },
         "epochs_used": {"finetuned": len(ft_history), "augmented": len(aug_history)},
         "synthetic": {
@@ -469,7 +513,7 @@ def _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args):
         "mps_nondeterminism_note": mps_note,
         "elapsed_seconds": round(time.time() - t0, 1),
     }
-    metrics_path = os.path.join(results_dir, f"seed{seed}_metrics.json")
+    metrics_path = os.path.join(results_dir, f"metrics_seed{seed}.json")
     with open(metrics_path, "w") as f:
         json.dump(metrics, f, indent=2)
     print(f"  Metrics -> {metrics_path}")
@@ -479,13 +523,23 @@ def _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args):
         "overall_baseline": round(base_metrics["overall_auroc"], 4),
         "overall_finetuned": round(ft_metrics["overall_auroc"], 4),
         "overall_synthetic": round(aug_metrics["overall_auroc"], 4),
+        "light_finetuned": round(ft_metrics["light_auroc"], 4),
+        "light_synthetic": round(aug_metrics["light_auroc"], 4),
+        "medium_finetuned": round(ft_metrics["medium_auroc"], 4),
+        "medium_synthetic": round(aug_metrics["medium_auroc"], 4),
         "dark_finetuned": round(ft_metrics["dark_auroc"], 4),
         "dark_synthetic": round(aug_metrics["dark_auroc"], 4),
         "dark_delta": round(delta["mean"], 4) if delta else None,
         "gap_finetuned": round(ft_metrics["gap_dark_minus_light"], 4),
         "gap_synthetic": round(aug_metrics["gap_dark_minus_light"], 4),
-        "light_finetuned": round(ft_metrics["light_auroc"], 4),
-        "light_synthetic": round(aug_metrics["light_auroc"], 4),
+        "overall_sens_finetuned": round(ft_metrics["overall_sens"], 4),
+        "overall_sens_synthetic": round(aug_metrics["overall_sens"], 4),
+        "overall_spec_finetuned": round(ft_metrics["overall_spec"], 4),
+        "overall_spec_synthetic": round(aug_metrics["overall_spec"], 4),
+        "light_sens_synthetic": round(aug_metrics["light_sens"], 4),
+        "light_spec_synthetic": round(aug_metrics["light_spec"], 4),
+        "dark_sens_synthetic": round(aug_metrics["dark_sens"], 4),
+        "dark_spec_synthetic": round(aug_metrics["dark_spec"], 4),
     }
     print(f"\nSEED {seed} complete in {time.time() - t0:.1f}s")
     return row
@@ -506,12 +560,7 @@ def ci_lo_hi(vals):
 
 def build_summary_df(rows):
     df = pd.DataFrame(rows)
-    ci_targets = [
-        ("dark_delta", "dark_delta_ci95_lo", "dark_delta_ci95_hi"),
-        ("gap_finetuned", "gap_finetuned_ci95_lo", "gap_finetuned_ci95_hi"),
-        ("gap_synthetic", "gap_synthetic_ci95_lo", "gap_synthetic_ci95_hi"),
-    ]
-    ci_cols = [col for _, lo, hi in ci_targets for col in (lo, hi)]
+    ci_cols = [col for _, lo, hi in CI_TARGETS for col in (lo, hi)]
     out = df[["seed"] + COLS].copy()
     for col in ci_cols:
         out[col] = np.nan
@@ -520,10 +569,15 @@ def build_summary_df(rows):
     for c in COLS:
         vals = df[c].dropna().astype(float)
         m = float(np.mean(vals)) if len(vals) else np.nan
-        s = float(np.std(vals, ddof=1)) if len(vals) > 1 else float(np.std(vals)) if len(vals) else np.nan
+        if len(vals) > 1:
+            s = float(np.std(vals, ddof=1))
+        elif len(vals) == 1:
+            s = np.nan
+        else:
+            s = np.nan
         mean_row[c] = round(m, 4) if not np.isnan(m) else np.nan
         sd_row[c] = round(s, 4) if not np.isnan(s) else np.nan
-    for target, lo, hi in ci_targets:
+    for target, lo, hi in CI_TARGETS:
         vals = df[target].dropna().astype(float).tolist()
         lo_v, hi_v = ci_lo_hi(vals)
         mean_row[lo] = lo_v
@@ -545,25 +599,37 @@ def write_summary(rows, seeds, failed, args):
         if not vals:
             aggregates[c] = None
             continue
+        if len(vals) < 2:
+            raise ValueError(
+                f"Cannot report mean +/- SD for {c!r}: only {len(vals)} seed(s) completed. "
+                f"A single seed has no sample SD; reporting 0.0 would understate uncertainty. "
+                f"At least 2 seeds must succeed. Failed: {failed}"
+            )
         lo, hi = ci_lo_hi(vals)
         aggregates[c] = {
             "mean": round(float(np.mean(vals)), 4),
-            "sd": round(float(np.std(vals, ddof=1)), 4) if len(vals) > 1 else 0.0,
+            "sd": round(float(np.std(vals, ddof=1)), 4),
+            "n_seeds": len(vals),
             "ci95": [lo, hi] if lo is not None else None,
         }
     summary = {
         "generated_by": "scripts/run_multiseed.py",
         "device": str(device),
         "seeds": seeds,
+        "seeds_completed": [r["seed"] for r in rows],
         "seeds_failed": failed,
-        "method": ("Reuse models/fairderm_ham_baseline.pth (SEED-independent, not retrained); "
-                   "per-seed 60/20/20 split; Stage-2 finetune + Stage-3 augment; evaluate on that "
-                   "seed's test; paired bootstrap Dark AUROC delta (augment - finetuned) n=1000 "
-                   "per seed; mean/SD/95% CI (seed-level percentile bootstrap, n=1000) across seeds."),
+        "method": (
+            "Full three-stage pipeline retrained per seed: Stage-1 HAM10000 baseline "
+            "(retrained per seed, never writes models/fairderm_ham_baseline.pth), Stage-2 "
+            "DDI fine-tune, Stage-3 train+augment. Per-seed 60/20/20 DDI split stratified by "
+            "label x skin_tone; 290 seeded synthetics from that seed's dark melanomas; SHA256 "
+            "byte-level leakage check vs that seed's val+test; evaluate on that seed's test. "
+            "Paired bootstrap Dark AUROC delta (augment - finetuned), n=1000 per seed. "
+            "Across seeds: mean, sample SD (ddof=1) and seed-level percentile bootstrap 95% CI."
+        ),
+        "baseline_retrained_per_seed": True,
         "rows": rows,
         "aggregates": aggregates,
-        "mps_nondeterminism_note": ("MPS is non-deterministic; per-seed AUROC may vary ~+/-0.01 "
-                                    "run-to-run. 5-seed mean +/- SD absorbs this."),
     }
     json_path = os.path.join(PROJECT_ROOT, "results", "multiseed_summary.json")
     with open(json_path, "w") as f:
@@ -577,18 +643,21 @@ def preflight(args):
     print(f"MPS available: {mps_ok}")
     if not mps_ok:
         print("WARNING: MPS not available; training will be slow.")
-    baseline_path = os.path.join(PROJECT_ROOT, "models", "fairderm_ham_baseline.pth")
-    if not os.path.exists(baseline_path):
-        print(f"FAIL: baseline checkpoint missing: {baseline_path}")
-        return False
+
+    ham_df, ham_img_dir = _prepare_ham10000()
+    print(f"  HAM10000: {len(ham_df)} images (baseline is retrained per seed)")
+
     model = create_model(pretrained=False)
-    model.load_state_dict(torch.load(baseline_path, weights_only=True))
     model.eval()
     dummy = torch.randn(1, 3, 224, 224).to(device)
     with torch.no_grad():
         out = model(dummy)
-    print(f"Baseline checkpoint loads OK; forward pass shape={tuple(out.shape)}")
-    print("(preflight uses pretrained=False so no download; weights only from baseline ckpt)")
+    print(f"Model constructs without download; forward shape={tuple(out.shape)}")
+
+    from fairderm import freeze_for_ddi_finetune
+    freeze_for_ddi_finetune(model)
+    n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Stage-2/3 trainable params: {n_trainable:,}")
 
     ddi_df, ddi_img_dir = setup_ddi_data()
     for seed in args.seeds:
@@ -596,6 +665,10 @@ def preflight(args):
         dark = train_df[(train_df["skin_tone"] == 56) & (train_df["label"] == 1)]
         print(f"  preflight seed={seed}: train={len(train_df)} val={len(val_df)} "
               f"test={len(test_df)} train_dark_mel={len(dark)}")
+
+    if len(args.seeds) < 2:
+        print(f"NOTE: {len(args.seeds)} seed requested. A mean +/- SD summary needs >= 2 seeds; "
+              f"a real run will error out rather than report a misleading SD of 0.")
     print("PREFLIGHT OK")
     return True
 
@@ -605,10 +678,13 @@ def main():
         description="FairDerm multi-seed robustness (Dark AUROC delta, 5 seeds mean +/- SD)."
     )
     parser.add_argument(
-        "--seeds", nargs="+", type=int, default=[42],
-        help="Seeds to run (recommended: 42 123 456 789 2026)",
+        "--seeds", nargs="+", type=int, default=[42, 43, 44, 45, 46],
+        help="Seeds to run (locked: 42 43 44 45 46)",
     )
     parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--baseline-epochs", type=int, default=10,
+                        help="Stage-1 HAM10000 epochs, retrained per seed")
+    parser.add_argument("--baseline-batch-size", type=int, default=8)
     parser.add_argument("--batch-size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=5e-5)
     parser.add_argument("--patience", type=int, default=3)
@@ -632,7 +708,9 @@ def main():
 
     set_seed(seeds[0])
     ddi_df, ddi_img_dir = setup_ddi_data()
-    print("Note: Stage-1 baseline checkpoint is reused for all seeds; it is NOT retrained.\n")
+    print("Note: the full three-stage pipeline is retrained per seed, so the reported SD "
+          "includes Stage-1 training variance. models/fairderm_ham_baseline.pth is never "
+          "written by this script.\n")
 
     rows = []
     failed = []
@@ -653,11 +731,18 @@ def main():
 
     write_summary(rows, seeds, failed, args)
 
+    summary = json.load(open(os.path.join(PROJECT_ROOT, "results", "multiseed_summary.json")))
     print("\n" + "=" * 70)
+    print(f"Multi-seed summary over {len(rows)} seed(s): {[r['seed'] for r in rows]}")
     for c in COLS:
-        agg = None
-        print(f"  {c}: completed seeds must be checked in multiseed_summary.json")
+        agg = summary["aggregates"].get(c)
+        if agg is None:
+            print(f"  {c:28s} no data")
+        else:
+            print(f"  {c:28s} {agg['mean']:.4f} +/- {agg['sd']:.4f}  CI95 {agg['ci95']}")
     print("=" * 70)
+    print("  results/multiseed_summary.csv")
+    print("  results/multiseed_summary.json")
 
     if failed:
         sys.exit(f"Seeds failed: {failed}")
