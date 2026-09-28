@@ -1,4 +1,5 @@
 \section{Results}
+\label{sec:results}
 
 \subsection{Main Results}
 
@@ -75,6 +76,7 @@ Light subgroup sensitivity was 0.700 (baseline), 0.600 (fine-tuned), and 0.600 (
 Sensitivity values are computed over small melanoma-positive subgroups ($n=10$ per subgroup) and should be interpreted as directional rather than definitive.
 
 \subsection{Ablation Study}
+\label{sec:ablation}
 
 Table~\ref{tab:ablation} summarizes the ablation results. The ablation reuses the generated dark-skin melanoma images, with multipliers of 0$\times$ (none), 2$\times$ (58 images), 5$\times$ (145 images), and 10$\times$ (290 images). At every multiplier the images are drawn round-robin across all 29 source lesions, so 2$\times$ uses 2 variants of each lesion rather than 10 variants of the first 6, and the arms isolate quantity from lesion identity. All arms freeze the same layers as Stage 3 (2,744,861 trainable parameters) and share Stage-3 learning rate, weight decay, batch size, and \texttt{pos\_weight}; they use a 5-epoch budget rather than Stage 3's 10, so the 10$\times$ arm is not a perfectly matched replica of the headline run.
 
