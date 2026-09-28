@@ -273,12 +273,20 @@ class DermDataset(Dataset):
 
 
 class SyntheticDataset(Dataset):
-    def __init__(self, syn_dir):
+    """Synthetic-image dataset, malignant by default.
+
+    `label` and `fst` exist so the symmetric pos_weight arm can supply benign
+    synthetics (label=0) without a separate loader.
+    """
+
+    def __init__(self, syn_dir, label=1.0, fst=56):
         self.files = sorted([
             os.path.join(syn_dir, f)
             for f in os.listdir(syn_dir)
             if f.lower().endswith((".jpg", ".png", ".jpeg"))
         ])
+        self.label = float(label)
+        self.fst = int(fst)
         self.tfm = transforms.Compose([
             transforms.ToPILImage(),
             transforms.Resize(CONFIG["IMG_SIZE"]),
@@ -292,7 +300,7 @@ class SyntheticDataset(Dataset):
     def __getitem__(self, idx):
         img = cv2.imread(self.files[idx])
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        return self.tfm(img), torch.tensor(1.0, dtype=torch.float32), 56
+        return self.tfm(img), torch.tensor(self.label, dtype=torch.float32), self.fst
 
 
 def setup_dataloaders(df, img_dir, transform, is_ddi=False, batch_size=8, shuffle=True):
@@ -1037,7 +1045,8 @@ def save_experiment(experiment_dir, config_dict, history_rows, checkpoint_path=N
 
     if checkpoint_path and os.path.exists(checkpoint_path):
         dst = os.path.join(experiment_dir, os.path.basename(checkpoint_path))
-        shutil.copy2(checkpoint_path, dst)
+        if os.path.abspath(dst) != os.path.abspath(checkpoint_path):
+            shutil.copy2(checkpoint_path, dst)
 
     print(f"  Experiment saved to {experiment_dir}/")
 
@@ -1127,12 +1136,20 @@ def train_baseline_model(ham_df, img_dir, seed, save_path, exp_dir,
                          num_epochs=10, batch_size=8, dry_run=False, resume=False):
     """Train the HAM10000 Stage-1 baseline for one seed.
 
-    Writes only to `save_path`; never touches the canonical checkpoint.
+    Writes only to `save_path`; refuses to touch the canonical checkpoint.
+    The model is initialized from ImageNet weights, as in the canonical pipeline.
     """
+    if os.path.abspath(save_path) == os.path.abspath(
+        os.path.join(CONFIG["CHECKPOINT_DIR"], CANONICAL_BASELINE_CKPT)
+    ):
+        raise ValueError(
+            f"Refusing to overwrite the canonical Stage-1 checkpoint "
+            f"{CANONICAL_BASELINE_CKPT}. Multi-seed runs must pass a per-seed path."
+        )
     train_loader, val_loader, ham_train_df, ham_val_df = _ham_loaders(
         ham_df, img_dir, seed, batch_size
     )
-    model = create_model(pretrained=False)
+    model = create_model(pretrained=True)
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.AdamW(model.parameters(), lr=3e-4, weight_decay=1e-4)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode="max", patience=2, factor=0.5)

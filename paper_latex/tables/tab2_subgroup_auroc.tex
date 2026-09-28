@@ -1,14 +1,16 @@
 \begin{table}[htbp]
 \centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
 \caption{Subgroup AUROC with 95\% bootstrap confidence intervals (1000 iterations).}
 \label{tab:subgroup_auroc}
-\begin{tabular}{lccccc}
+\begin{tabular}{lccccccc}
 \toprule
-\textbf{Stage} & Light AUROC & Dark AUROC & Gap & Light 95\% CI & Dark 95\% CI \\
+\textbf{Stage} & \textbf{Light} & \textbf{Medium} & \textbf{Dark} & \textbf{Gap} & \textbf{Light CI} & \textbf{Medium CI} & \textbf{Dark CI} \\
 \midrule
-Baseline & 0.7188 & 0.5875 & -0.1313 & --- & --- \\
-Fine-tuned & 0.7563 & 0.5469 & -0.2094 & [0.575, 0.903] & [0.341, 0.750] \\
-+Synthetic & 0.7719 & 0.4813 & -0.2906 & [0.582, 0.925] & [0.276, 0.688] \\
+Baseline & 0.7188 & 0.6808 & 0.5875 & -0.1313 & --- & --- & --- \\
+Fine-tuned & 0.7563 & 0.6485 & 0.5469 & -0.2094 & [0.575, 0.903] & [0.474, 0.823] & [0.341, 0.750] \\
++Generated & 0.7719 & 0.6828 & 0.4813 & -0.2906 & [0.582, 0.925] & [0.507, 0.845] & [0.276, 0.688] \\
 \bottomrule
 \end{tabular}
 \vspace{2pt}

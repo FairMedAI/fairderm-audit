@@ -85,21 +85,20 @@ def fig1_val_auroc_comparison(metrics):
 
 def fig2_subgroup_auroc(metrics):
     stages = metrics["stages"]
-    labels = ["Baseline", "Fine-tuned", "+Synthetic"]
+    labels = ["Baseline", "Fine-tuned", "+Generated"]
     keys = ["baseline", "finetune", "final_synthetic"]
-    light_vals = [stages[k]["Light"]["auroc"] for k in keys]
-    dark_vals = [stages[k]["Dark"]["auroc"] for k in keys]
-
-    # Bootstrap CIs for error bars
-    bootstrap = metrics.get("bootstrap_ci", {})
+    series = [
+        ("Light (I\u2013II)", "#5B9BD5", [stages[k]["Light"]["auroc"] for k in keys]),
+        ("Medium (III\u2013IV)", "#70AD47", [stages[k]["Medium"]["auroc"] for k in keys]),
+        ("Dark (V\u2013VI)", "#ED7D31", [stages[k]["Dark"]["auroc"] for k in keys]),
+    ]
 
     x = np.arange(len(labels))
-    width = 0.35
-    fig, ax = plt.subplots(figsize=(6, 3.5))
-    ax.bar(x - width / 2, light_vals, width, label="Light (Fitzpatrick I\u2013II)",
-           color="#5B9BD5", edgecolor="black", linewidth=0.5)
-    ax.bar(x + width / 2, dark_vals, width, label="Dark (Fitzpatrick V\u2013VI)",
-           color="#ED7D31", edgecolor="black", linewidth=0.5)
+    width = 0.26
+    fig, ax = plt.subplots(figsize=(6.5, 3.5))
+    for i, (name, color, vals) in enumerate(series):
+        ax.bar(x + (i - 1) * width, vals, width, label=name,
+               color=color, edgecolor="black", linewidth=0.5)
     ax.set_ylabel("AUROC", fontsize=11)
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
@@ -117,15 +116,17 @@ def fig2_subgroup_auroc(metrics):
 
 def fig3_sensitivity_gap(metrics):
     stages = metrics["stages"]
-    labels = ["Baseline", "Fine-tuned", "+Synthetic"]
+    labels = ["Baseline", "Fine-tuned", "+Generated"]
     keys = ["baseline", "finetune", "final_synthetic"]
     light_sens = [stages[k]["Light"]["sensitivity"] for k in keys]
+    med_sens = [stages[k]["Medium"]["sensitivity"] for k in keys]
     dark_sens = [stages[k]["Dark"]["sensitivity"] for k in keys]
     gaps = [d - l for d, l in zip(dark_sens, light_sens)]
 
-    fig, ax = plt.subplots(figsize=(6, 3.5))
+    fig, ax = plt.subplots(figsize=(6.5, 3.5))
     x = range(len(labels))
     ax.plot(x, light_sens, "o-", color="#5B9BD5", label="Light Sens.", linewidth=2, markersize=8)
+    ax.plot(x, med_sens, "^-", color="#70AD47", label="Medium Sens.", linewidth=2, markersize=8)
     ax.plot(x, dark_sens, "s-", color="#ED7D31", label="Dark Sens.", linewidth=2, markersize=8)
     ax.axhline(y=0, color="gray", linestyle="--", linewidth=0.8, alpha=0.5)
     for i, g in enumerate(gaps):
@@ -155,11 +156,13 @@ def fig4_bootstrap_ci(metrics):
     y = 0
     stage_info = [
         ("Fine-tuned", "finetuned", "Light"),
+        ("Fine-tuned", "finetuned", "Medium"),
         ("Fine-tuned", "finetuned", "Dark"),
-        ("+Synthetic", "final", "Light"),
-        ("+Synthetic", "final", "Dark"),
+        ("+Generated", "final", "Light"),
+        ("+Generated", "final", "Medium"),
+        ("+Generated", "final", "Dark"),
     ]
-    colors = {"Light": "#5B9BD5", "Dark": "#ED7D31"}
+    colors = {"Light": "#5B9BD5", "Medium": "#70AD47", "Dark": "#ED7D31"}
 
     for stage_label, stage_key, tone in stage_info:
         ci = bootstrap.get(stage_key, {}).get(tone, {})

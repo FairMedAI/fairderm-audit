@@ -2,12 +2,12 @@
 
 \subsection{Main Results}
 
-Table~\ref{tab:main_results} presents the primary classification performance across three model stages: a pretrained baseline, a fine-tuned model, and a fine-tuned model augmented with synthetic dermoscopy images. Stages 2 and 3 share identical hyperparameters; the only difference is the addition of synthetic training images.
+Table~\ref{tab:main_results} presents the primary classification performance across three model stages: a pretrained baseline, a fine-tuned model, and a fine-tuned model augmented with 290 generated dermoscopy images. Stages 2 and 3 share learning rate, weight decay, batch size, frozen layers, and epoch budget. The augmentation is additionally accompanied by a change in effective class ratio, which we quantify separately in Section~\ref{sec:pw_arms_results} rather than attributing the whole Stage-2 to Stage-3 difference to the generated images.
 
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.7\textwidth]{figures/fig2_subgroup_auroc.pdf}
-  \caption{Subgroup AUROC across pipeline stages. Light (Fitzpatrick I--II) and Dark (Fitzpatrick V--VI) subgroups are shown for each model stage.}
+  \caption{Subgroup AUROC across pipeline stages. Light (Fitzpatrick I--II), Medium (Fitzpatrick III--IV), and Dark (Fitzpatrick V--VI) subgroups are shown for each model stage.}
   \label{fig:subgroup_auroc}
 \end{figure}
 
@@ -17,11 +17,30 @@ The pretrained baseline achieved an overall AUROC of 0.662 on the held-out test 
 
 Fine-tuning on the DDI training split reduced overall AUROC to 0.634 (Table~\ref{tab:main_results}). Light subgroup AUROC was 0.756 and Dark subgroup AUROC was 0.547, widening the inter-group gap from $-0.131$ to $-0.209$. This result shows that standard fine-tuning did not remove the observed disparity.
 
-The addition of synthetic augmentation yielded overall AUROC 0.640 and Dark subgroup AUROC 0.481. The Light--Dark gap widened to $-0.291$. The paired bootstrap comparison gave a Dark AUROC delta of $-0.066$ and $p=0.962$ (one-tailed directional, $H_1$: Dark improvement $>0$; $p$\,$=$\,proportion of bootstrap $\Delta \leq 0$). These findings indicate that simple photometric augmentation from 29 source images did not close the skin-tone performance gap.
+The addition of generated augmentation yielded overall AUROC 0.639 and Dark subgroup AUROC 0.481. The Light--Dark gap widened to $-0.291$. The paired bootstrap comparison gave a Dark AUROC delta of $-0.066$ and $p=0.962$ (one-tailed directional, $H_1$: Dark improvement $>0$; $p$\,$=$\,proportion of bootstrap $\Delta \leq 0$). These findings indicate that simple photometric augmentation from 29 source images did not close the skin-tone performance gap.
+
+\subsection{Class-Imbalance Arm Study}
+\label{sec:pw_arms_results}
+
+Table~\ref{tab:pw_arms} reports the three Stage-3 arms described in Section~\ref{sec:pw_arms}, each trained from the same Stage-2 checkpoint so that the weighting and the generated-image composition are the only things that vary.
+
+The static arm reproduced the headline configuration and recovered overall AUROC 0.640, within 0.001 of the reported 0.639. Its Dark AUROC was 0.484 and its Light--Dark gap $-0.222$, also closely tracking the headline $-0.291$ in direction and size. The static arm was re-run with the seeded, reproducible generator, so the generated image set differs byte-for-byte from the unseeded set behind the headline run; this is why the subgroup values match to two decimals rather than exactly.
+
+Recomputing \texttt{pos\_weight} on the enlarged training set (2.8529 to 0.7423) changed almost nothing: overall AUROC 0.637, Dark AUROC 0.478, gap $-0.222$. The weighting term is therefore not the mechanism behind the degradation.
+
+Balancing the generated-image composition and the weight together (101 generated dark benign images added; \texttt{pos\_weight} 1.0) moved Dark AUROC to 0.550 and narrowed the gap to $-0.141$, with overall AUROC 0.668. Dark AUROC in this arm is at the fine-tuned level (0.547) rather than below it. Light AUROC was 0.691 and Medium AUROC 0.772, so the gain is concentrated in the Dark subgroup and is not a uniform improvement.
+
+The implication is that the degradation in the headline Stage-3 run is substantially attributable to generating malignant-only images for dark skin, not to augmentation as such. The intervention as originally specified confounds data quantity with class composition, and the headline number alone cannot distinguish the two.
+
+\subsection{Multi-Seed Robustness}
+\label{sec:multiseed_results}
+
+PLACEHOLDER\_MULTISEED\_TABLE
 
 \subsection{Subgroup Analysis}
+\label{sec:subgroup_analysis}
 
-Table~\ref{tab:subgroup_auroc} reports per-subgroup AUROC, sensitivity, and specificity across all three model stages.
+Table~\ref{tab:subgroup_auroc} reports per-subgroup AUROC, sensitivity, and specificity across all three model stages, including the Medium subgroup (Fitzpatrick III--IV, $n=48$).
 
 \begin{figure}[htbp]
   \centering
@@ -32,13 +51,13 @@ Table~\ref{tab:subgroup_auroc} reports per-subgroup AUROC, sensitivity, and spec
 
 Figure~\ref{fig:bootstrap_ci} displays bootstrap confidence intervals for the subgroup AUROC estimates.
 
-The Dark subgroup exhibited no consistent improvement across stages. AUROC progressed from 0.588 (baseline) to 0.547 (fine-tuned) to 0.481 (augmented), while Light AUROC progressed from 0.719 to 0.756 to 0.772.
+The Dark subgroup exhibited no consistent improvement across stages. AUROC progressed from 0.588 (baseline) to 0.547 (fine-tuned) to 0.481 (augmented), while Light AUROC progressed from 0.719 to 0.756 to 0.772. The Medium subgroup behaved similarly, and its estimates carry the widest uncertainty because only 8 of its 48 test images are melanoma.
 
 Bootstrap confidence intervals (1000 iterations) confirmed the high uncertainty. The fine-tuned Dark AUROC bootstrap CI was $[0.341,\; 0.750]$, and the augmented model Dark AUROC CI was $[0.276,\; 0.688]$. Their overlap and the paired comparison p-value of 0.962 (one-tailed directional, $H_1$: Dark improvement $>0$) show that augmentation did not significantly improve Dark AUROC.
 
 \subsection{Sensitivity Analysis}
 
-Table~\ref{tab:sensitivity} reports sensitivity and specificity stratified by skin tone. Thresholds for all stages use Youden's $J$ on validation; AUROC is the primary comparison metric.
+Table~\ref{tab:sensitivity} reports sensitivity and specificity stratified by skin tone, including the Medium subgroup. Thresholds for all stages use Youden's $J$ on validation; AUROC is the primary comparison metric.
 
 \begin{figure}[htbp]
   \centering
@@ -57,16 +76,16 @@ Sensitivity values are computed over small melanoma-positive subgroups ($n=10$ p
 
 \subsection{Ablation Study}
 
-Table~\ref{tab:ablation} summarizes the ablation results. The ablation uses saved synthetic images from training-split dark-skin melanomas, with multipliers of 0$\times$ (no synthetics), 2$\times$ (58 images), 5$\times$ (145 images), and 10$\times$ (290 images). All ablation variants use identical hyperparameters to Stage 3.
+Table~\ref{tab:ablation} summarizes the ablation results. The ablation reuses the generated dark-skin melanoma images, with multipliers of 0$\times$ (none), 2$\times$ (58 images), 5$\times$ (145 images), and 10$\times$ (290 images). At every multiplier the images are drawn round-robin across all 29 source lesions, so 2$\times$ uses 2 variants of each lesion rather than 10 variants of the first 6, and the arms isolate quantity from lesion identity. All arms freeze the same layers as Stage 3 (2,744,861 trainable parameters) and share Stage-3 learning rate, weight decay, batch size, and \texttt{pos\_weight}; they use a 5-epoch budget rather than Stage 3's 10, so the 10$\times$ arm is not a perfectly matched replica of the headline run.
 
 \begin{figure}[htbp]
   \centering
   \includegraphics[width=0.7\textwidth]{figures/fig5_ablation_tradeoff.pdf}
-  \caption{Ablation: validation AUROC, test AUROC, and dark-subgroup test AUROC across saved synthetic multipliers.}
+  \caption{Ablation: validation AUROC, test AUROC, and dark-subgroup test AUROC across generated-image multipliers.}
   \label{fig:ablation_tradeoff}
 \end{figure}
 
-Figure~\ref{fig:ablation_tradeoff} presents the relationship between synthetic multiplier and performance across three metrics.
+Figure~\ref{fig:ablation_tradeoff} presents the relationship between generated-image multiplier and performance across three metrics.
 
 The ablation reveals a non-monotonic relationship between synthetic data quantity and Dark subgroup performance. Dark AUROC was 0.5438, 0.5750, 0.5344, and 0.4812 at 0$\times$, 2$\times$, 5$\times$, and 10$\times$, respectively. Overall test AUROC was 0.6848, 0.7063, 0.6742, and 0.6433, while validation AUROC peaked at 2$\times$. This exploratory pattern requires multi-seed confirmation.
 

@@ -323,14 +323,15 @@ def paired_dark_delta(labels, p_ft, p_aug, dark_mask, n):
     }
 
 
-def run_seed(seed, ddi_df, ddi_img_dir, args):
-    results_dir = os.path.join(PROJECT_ROOT, "results", "multiseed")
+def run_seed(seed, ddi_df, ddi_img_dir, args, ham, results_root=None):
+    results_dir = os.path.join(results_root or os.path.join(PROJECT_ROOT, "results", "multiseed"),
+                               "multiseed")
     os.makedirs(results_dir, exist_ok=True)
     with TeeLogger(os.path.join(results_dir, f"seed{seed}.log")):
-        return _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args)
+        return _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args, ham)
 
 
-def _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args):
+def _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args, ham=None):
     t0 = time.time()
     set_seed(seed)
     CONFIG["SEED"] = seed
@@ -365,12 +366,26 @@ def _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args):
     )
 
     baseline_path = os.path.join(seed_dir, f"fairderm_ham_baseline_seed{seed}.pth")
-    print(f"\n[Stage 1: train HAM10000 baseline for seed {seed}] -> {baseline_path}")
-    ham_df, ham_img_dir = _prepare_ham10000()
-    baseline_model, baseline_history = train_baseline_model(
-        ham_df, ham_img_dir, seed, baseline_path, seed_dir,
-        num_epochs=args.baseline_epochs, batch_size=args.baseline_batch_size,
-    )
+    reuse = getattr(args, "reuse_baseline", False) and os.path.exists(baseline_path)
+    if reuse:
+        print(f"\n[Stage 1: REUSING existing baseline for seed {seed}] -> {baseline_path}")
+        baseline_model = create_model(pretrained=False)
+        baseline_model.load_state_dict(torch.load(baseline_path, weights_only=True))
+        hist_path = os.path.join(seed_dir, "training_history.csv")
+        baseline_history = []
+        if os.path.exists(hist_path):
+            baseline_history = pd.read_csv(hist_path).to_dict("records")
+        print("  NOTE: --reuse-baseline was set; Stage-1 training variance is NOT "
+              "included in this seed's result.")
+    else:
+        print(f"\n[Stage 1: train HAM10000 baseline for seed {seed}] -> {baseline_path}")
+        if ham is None:
+            ham = _prepare_ham10000()
+        ham_df, ham_img_dir = ham
+        baseline_model, baseline_history = train_baseline_model(
+            ham_df, ham_img_dir, seed, baseline_path, seed_dir,
+            num_epochs=args.baseline_epochs, batch_size=args.baseline_batch_size,
+        )
     n_trainable_s1 = count_trainable(baseline_model)
     print(f"  Stage-1 trainable params: {n_trainable_s1:,}")
 
@@ -587,11 +602,9 @@ def build_summary_df(rows):
     return out
 
 
-def write_summary(rows, seeds, failed, args):
-    df = build_summary_df(rows)
-    csv_path = os.path.join(PROJECT_ROOT, "results", "multiseed_summary.csv")
-    df.to_csv(csv_path, index=False)
-    print(f"Summary CSV -> {csv_path}")
+def write_summary(rows, seeds, failed, args, results_root=None):
+    results_root = results_root or os.path.join(PROJECT_ROOT, "results")
+    csv_path = os.path.join(results_root, "multiseed_summary.csv")
 
     aggregates = {}
     for c in COLS:
@@ -631,7 +644,9 @@ def write_summary(rows, seeds, failed, args):
         "rows": rows,
         "aggregates": aggregates,
     }
-    json_path = os.path.join(PROJECT_ROOT, "results", "multiseed_summary.json")
+    build_summary_df(rows).to_csv(csv_path, index=False)
+    print(f"Summary CSV -> {csv_path}")
+    json_path = os.path.join(results_root, "multiseed_summary.json")
     with open(json_path, "w") as f:
         json.dump(summary, f, indent=2)
     print(f"Summary JSON -> {json_path}")
@@ -647,16 +662,20 @@ def preflight(args):
     ham_df, ham_img_dir = _prepare_ham10000()
     print(f"  HAM10000: {len(ham_df)} images (baseline is retrained per seed)")
 
-    model = create_model(pretrained=False)
-    model.eval()
+    try:
+        init_model = create_model(pretrained=True)
+    except Exception as e:
+        print(f"ERROR: ImageNet weights unavailable for Stage 1: {e}")
+        return False
+    init_model.eval()
     dummy = torch.randn(1, 3, 224, 224).to(device)
     with torch.no_grad():
-        out = model(dummy)
-    print(f"Model constructs without download; forward shape={tuple(out.shape)}")
+        out = init_model(dummy)
+    print(f"ImageNet weights load OK; forward shape={tuple(out.shape)}")
 
     from fairderm import freeze_for_ddi_finetune
-    freeze_for_ddi_finetune(model)
-    n_trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    freeze_for_ddi_finetune(init_model)
+    n_trainable = sum(p.numel() for p in init_model.parameters() if p.requires_grad)
     print(f"Stage-2/3 trainable params: {n_trainable:,}")
 
     ddi_df, ddi_img_dir = setup_ddi_data()
@@ -690,6 +709,17 @@ def main():
     parser.add_argument("--patience", type=int, default=3)
     parser.add_argument("--bootstrap", type=int, default=1000)
     parser.add_argument(
+        "--reuse-baseline", action="store_true",
+        help="Load an existing per-seed Stage-1 checkpoint instead of retraining it. "
+             "Excludes Stage-1 training variance from that seed; use for crash recovery "
+             "only, never for the reported multi-seed statistics.",
+    )
+    parser.add_argument(
+        "--output-root", default=None,
+        help="Write per-seed outputs and the summary under this directory instead of "
+             "results/ (use for the MPS-repeatability repeat of a seed).",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true",
         help="Pre-flight gate: verify imports, device, baseline ckpt, splits. Writes nothing.",
     )
@@ -703,11 +733,13 @@ def main():
     if args.dry_run:
         sys.exit(0 if preflight(args) else 1)
 
-    results_dir = os.path.join(PROJECT_ROOT, "results", "multiseed")
+    results_root = args.output_root or os.path.join(PROJECT_ROOT, "results")
+    results_dir = os.path.join(results_root, "multiseed")
     os.makedirs(results_dir, exist_ok=True)
 
     set_seed(seeds[0])
     ddi_df, ddi_img_dir = setup_ddi_data()
+    ham = _prepare_ham10000()
     print("Note: the full three-stage pipeline is retrained per seed, so the reported SD "
           "includes Stage-1 training variance. models/fairderm_ham_baseline.pth is never "
           "written by this script.\n")
@@ -716,7 +748,8 @@ def main():
     failed = []
     for seed in seeds:
         try:
-            rows.append(run_seed(seed, ddi_df, ddi_img_dir, args))
+            rows.append(run_seed(seed, ddi_df, ddi_img_dir, args, ham=ham,
+                                 results_root=results_root))
         except Exception as e:
             failed.append(seed)
             print(f"\n[SEED {seed}] FAILED: {e}")
@@ -729,9 +762,10 @@ def main():
     if not rows:
         sys.exit("All seeds failed — no summary written.")
 
-    write_summary(rows, seeds, failed, args)
+    write_summary(rows, seeds, failed, args, results_root=results_root)
 
-    summary = json.load(open(os.path.join(PROJECT_ROOT, "results", "multiseed_summary.json")))
+    summary_path = os.path.join(results_root, "multiseed_summary.json")
+    summary = json.load(open(summary_path))
     print("\n" + "=" * 70)
     print(f"Multi-seed summary over {len(rows)} seed(s): {[r['seed'] for r in rows]}")
     for c in COLS:
@@ -741,8 +775,8 @@ def main():
         else:
             print(f"  {c:28s} {agg['mean']:.4f} +/- {agg['sd']:.4f}  CI95 {agg['ci95']}")
     print("=" * 70)
-    print("  results/multiseed_summary.csv")
-    print("  results/multiseed_summary.json")
+    print(f"  {os.path.join(results_root, 'multiseed_summary.csv')}")
+    print(f"  {summary_path}")
 
     if failed:
         sys.exit(f"Seeds failed: {failed}")

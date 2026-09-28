@@ -41,7 +41,7 @@ def write_table1_main_results(metrics):
     stage_order = [
         ("Baseline", "baseline", "baseline"),
         ("Fine-tuned", "finetuned", "finetune"),
-        ("+Synthetic", "final", "final_synthetic"),
+        ("+Generated", "final", "final_synthetic"),
     ]
 
     val_aurocs = {}
@@ -91,34 +91,41 @@ def write_table2_subgroup_results(metrics):
     lines = [
         r"\begin{table}[htbp]",
         r"\centering",
+        r"\footnotesize",
+        r"\setlength{\tabcolsep}{4pt}",
         r"\caption{Subgroup AUROC with 95\% bootstrap confidence intervals (1000 iterations).}",
         r"\label{tab:subgroup_auroc}",
-        r"\begin{tabular}{lccccc}",
+        r"\begin{tabular}{lccccccc}",
         r"\toprule",
-        r"\textbf{Stage} & Light AUROC & Dark AUROC & Gap & Light 95\% CI & Dark 95\% CI \\",
+        r"\textbf{Stage} & \textbf{Light} & \textbf{Medium} & \textbf{Dark} & \textbf{Gap} "
+        r"& \textbf{Light CI} & \textbf{Medium CI} & \textbf{Dark CI} \\",
         r"\midrule",
     ]
     stage_order = [
         ("Baseline", "baseline", None),
         ("Fine-tuned", "finetune", "finetuned"),
-        ("+Synthetic", "final_synthetic", "final"),
+        ("+Generated", "final_synthetic", "final"),
     ]
     for label, key, ci_key in stage_order:
         s = stages.get(key, {})
         l_auroc = s.get("Light", {}).get("auroc", 0)
+        m_auroc = s.get("Medium", {}).get("auroc", 0)
         d_auroc = s.get("Dark", {}).get("auroc", 0)
         gap = d_auroc - l_auroc
         if ci_key and ci_key in bootstrap:
             lc = bootstrap[ci_key].get("Light", {})
+            mc = bootstrap[ci_key].get("Medium", {})
             dc = bootstrap[ci_key].get("Dark", {})
             l_ci = f"[{lc.get('lo', 0):.3f}, {lc.get('hi', 0):.3f}]"
+            m_ci = f"[{mc.get('lo', 0):.3f}, {mc.get('hi', 0):.3f}]" if mc else "---"
             d_ci = f"[{dc.get('lo', 0):.3f}, {dc.get('hi', 0):.3f}]"
         else:
             l_ci = "---"
+            m_ci = "---"
             d_ci = "---"
         lines.append(
-            f"{label} & {l_auroc:.4f} & {d_auroc:.4f} & {gap:+.4f} & "
-            f"{l_ci} & {d_ci} \\\\"
+            f"{label} & {l_auroc:.4f} & {m_auroc:.4f} & {d_auroc:.4f} & {gap:+.4f} & "
+            f"{l_ci} & {m_ci} & {d_ci} \\\\"
         )
 
     # Add footnote about threshold differences
@@ -140,32 +147,40 @@ def write_table3_sensitivity(metrics):
     lines = [
         r"\begin{table}[htbp]",
         r"\centering",
-        r"\caption{Sensitivity, specificity, and PPV by skin-tone subgroup.$^*$}",
+        r"\footnotesize",
+        r"\setlength{\tabcolsep}{4pt}",
+        r"\caption{Sensitivity, specificity, and PPV by skin-tone subgroup.}",
         r"\label{tab:sensitivity}",
-        r"\begin{tabular}{lcccccc}",
+        r"\begin{tabular}{lcccccccc}",
         r"\toprule",
-        r"\textbf{Stage} & Light Sens. & Dark Sens. & Sens. Gap & Light Spec. & Dark Spec. & PPV \\",
+        r"\textbf{Stage} & \textbf{Light} & \textbf{Medium} & \textbf{Dark} & \textbf{Gap} "
+        r"& \textbf{Light} & \textbf{Medium} & \textbf{Dark} & \textbf{PPV} \\",
         r"\midrule",
     ]
     stage_order = [
         ("Baseline", "baseline"),
         ("Fine-tuned", "finetune"),
-        ("+Synthetic", "final_synthetic"),
+        ("+Generated", "final_synthetic"),
     ]
     for label, key in stage_order:
         s = stages.get(key, {})
         l_sens = s.get("Light", {}).get("sensitivity", 0)
+        m_sens = s.get("Medium", {}).get("sensitivity", 0)
         d_sens = s.get("Dark", {}).get("sensitivity", 0)
         l_spec = s.get("Light", {}).get("specificity", 0)
+        m_spec = s.get("Medium", {}).get("specificity", 0)
         d_spec = s.get("Dark", {}).get("specificity", 0)
         d_ppv = s.get("Dark", {}).get("ppv", 0)
         lines.append(
-            f"{label} & {l_sens:.3f} & {d_sens:.3f} & {d_sens - l_sens:+.3f} & "
-            f"{l_spec:.3f} & {d_spec:.3f} & {d_ppv:.3f} \\\\"
+            f"{label} & {l_sens:.3f} & {m_sens:.3f} & {d_sens:.3f} & {d_sens - l_sens:+.3f} & "
+            f"{l_spec:.3f} & {m_spec:.3f} & {d_spec:.3f} & {d_ppv:.3f} \\\\"
         )
     lines += [
         r"\bottomrule",
         r"\end{tabular}",
+        r"\vspace{2pt}",
+        r"\footnotesize{Sens.\ Gap = Dark sensitivity $-$ Light sensitivity. "
+        r"Thresholds are selected per stage by Youden's $J$ on the validation split.}",
         r"\end{table}",
     ]
     path = os.path.join(TABLES_DIR, "tab3_sensitivity.tex")
@@ -297,8 +312,9 @@ def write_table6_dataset(metrics):
         r"HAM10000 & 7{,}818 & 6{,}254 & 1{,}564 & --- & Melanoma/nevus only \\",
         f"DDI & 656 & {sizes.get('train', 393)} & {sizes.get('val', 131)} & {sizes.get('test', 132)} & Stratified by skin tone \\\\",
         f"DDI Light (test) & --- & --- & --- & {test_sub.get('light', 42)} & Fitzpatrick I--II \\\\",
+        f"DDI Medium (test) & --- & --- & --- & {test_sub.get('medium', 48)} & Fitzpatrick III--IV \\\\",
         f"DDI Dark (test) & --- & --- & --- & {test_sub.get('dark', 42)} & Fitzpatrick V--VI \\\\",
-        r"Synthetic & 290 & 290 & --- & --- & 29 train dark mel.$\times$10 aug. \\",
+        r"Generated & 290 & 290 & --- & --- & 29 train dark mel.$\times$10 transforms \\",
         r"\bottomrule",
         r"\end{tabular}",
         r"\end{table}",
@@ -313,29 +329,167 @@ def write_table7_provenance():
     lines = [
         r"\begin{table}[htbp]",
         r"\centering",
-        r"\small",
+        r"\footnotesize",
+        r"\setlength{\tabcolsep}{4pt}",
         r"\caption{Metrics provenance: source files and method for each reported value.}",
         r"\label{tab:provenance}",
-        r"\begin{tabular}{p{3.2cm}p{4.4cm}p{2.4cm}p{1.5cm}p{1.3cm}}",
+        r"\resizebox{\textwidth}{!}{%",
+        r"\begin{tabular}{>{\raggedright\arraybackslash}p{2.6cm}"
+        r">{\raggedright\arraybackslash}p{4.9cm}"
+        r">{\raggedright\arraybackslash}p{1.8cm}"
+        r">{\raggedright\arraybackslash}p{1.5cm}"
+        r">{\raggedright\arraybackslash}p{1.4cm}}",
         r"\toprule",
-        r"\textbf{Metric} & \textbf{Source File} & \textbf{Method} & \textbf{Hardcoded?} & \textbf{Verified} \\",
+        r"\textbf{Metric} & \textbf{Source File} & \textbf{Method} & \textbf{Literal?} & \textbf{Checked?} \\",
         r"\midrule",
         r"Overall test AUROC/Sens/Spec/F1 & \texttt{metrics\_clean.json} & code & No & Yes \\",
         r"Subgroup AUROC/Sens/Spec/PPV & \texttt{metrics\_clean.json} & code & No & Yes \\",
         r"Bootstrap 95\% CIs & \texttt{metrics\_clean.json} & code & No & Yes \\",
         r"p-value (Dark improvement) & \texttt{metrics\_clean.json} & code & No & Yes \\",
         r"Ablation overall + subgroup & \texttt{ablation\_report.csv} & code & No & Yes \\",
+        r"Arm-study AUROC/Sens/Spec & \texttt{pos\_weight\_arms\_summary.json} & code & No & Yes \\",
+        r"Multi-seed mean, SD, CI & \texttt{multiseed\_summary.json} & code & No & Yes \\",
         r"Val AUROCs & \texttt{config.json} & code & No & Yes \\",
         r"Thresholds & \texttt{metrics\_clean.json} & Youden's J (val set) & No & Yes \\",
         r"Split disjointness & \texttt{ddi\_split\_seed42.json} & assertion check & No & Yes \\",
-        r"Leakage (0 synthetic--test dupes) & \texttt{leakage\_report.json} & SHA256 dedup & No & Yes \\",
+        r"Leakage (0 gen--test dupes) & \texttt{leakage\_report.json} & SHA256 dedup & No & Yes \\",
+        r"Gen. image provenance & \texttt{synthetic\_provenance\_report.json} & hash $+$ descriptor & No & Yes \\",
         r"\bottomrule",
-        r"\end{tabular}",
+        r"\end{tabular}}",
         r"\vspace{2pt}",
-        r"\footnotesize{* All paths are relative to the repository root (e.g.\ \texttt{results/metrics\_clean.json}).}",
+        r"\footnotesize{* All paths are relative to the repository root, e.g.\ \texttt{results/metrics\_clean.json}.}",
         r"\end{table}",
     ]
     path = os.path.join(TABLES_DIR, "tab7_provenance.tex")
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"  Wrote {path}")
+
+
+def load_pos_weight_arms():
+    path = os.path.join(ROOT, "results", "pos_weight_arms", "pos_weight_arms_summary.json")
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
+def load_multiseed():
+    path = os.path.join(ROOT, "results", "multiseed_summary.json")
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        return json.load(f)
+
+
+def write_table8_pos_weight_arms(summary):
+    arms = summary.get("arms", {})
+    order = [a for a in ("static", "recomputed", "symmetric") if a in arms]
+    if not order:
+        return
+    label = {
+        "static": "static (headline)",
+        "recomputed": "recomputed",
+        "symmetric": "symmetric",
+    }
+    lines = [
+        r"\begin{table}[htbp]",
+        r"\centering",
+        r"\footnotesize",
+        r"\setlength{\tabcolsep}{4pt}",
+        r"\caption{Stage-3 class-imbalance arm study. All arms start from the same seed-42 "
+        r"fine-tuned checkpoint and differ only in \texttt{pos\_weight} and generated-image "
+        r"composition.}",
+        r"\label{tab:pw_arms}",
+        r"\begin{tabular}{lccccccc}",
+        r"\toprule",
+        r"\textbf{Arm} & \texttt{pos\_weight} & Combined & Light & Medium & Dark & Gap "
+        r"& Overall \\",
+        r"\midrule",
+    ]
+    for a in order:
+        d = arms[a]
+        cc = d.get("class_counts", {})
+        comb = f"{cc.get('combined_pos', 0)}/{cc.get('combined_neg', 0)}"
+        gap = d.get("gap_dark_minus_light")
+
+        def g(k, digits=4):
+            v = d.get(k)
+            return f"{v:.{digits}f}" if isinstance(v, (int, float)) else "---"
+
+        lines.append(
+            f"{label[a]} & {d.get('pos_weight', 0):.4f} & {comb} & "
+            f"{g('light_auroc')} & {g('medium_auroc')} & {g('dark_auroc')} & "
+            f"{(f'{gap:+.4f}' if isinstance(gap, (int, float)) else '---')} & "
+            f"{g('overall_auroc')} \\\\"
+        )
+    lines += [
+        r"\bottomrule",
+        r"\end{tabular}",
+        r"\vspace{2pt}",
+        r"\footnotesize{Combined = malignant/benign counts presented to the loss. "
+        r"The static arm retains the pre-augmentation ratio and is the configuration "
+        r"behind the headline result. Arms were re-run with the seeded, reproducible "
+        r"image generator, so the static arm reproduces the headline overall AUROC "
+        r"(0.640 vs.\ 0.639) but not every subgroup value exactly.}",
+        r"\end{table}",
+    ]
+    path = os.path.join(TABLES_DIR, "tab8_pos_weight_arms.tex")
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    print(f"  Wrote {path}")
+
+
+def write_table9_multiseed(summary):
+    agg = summary.get("aggregates", {})
+    seeds = summary.get("seeds_completed", [])
+    if not agg:
+        return
+    rows_spec = [
+        ("Overall AUROC (fine-tuned)", "overall_finetuned"),
+        ("Overall AUROC (+generated)", "overall_synthetic"),
+        ("Light AUROC (+generated)", "light_synthetic"),
+        ("Medium AUROC (+generated)", "medium_synthetic"),
+        ("Dark AUROC (+generated)", "dark_synthetic"),
+        ("Dark$-$Light gap (+generated)", "gap_synthetic"),
+        ("Dark AUROC delta (gen. $-$ fine-tune)", "dark_delta"),
+        ("Sensitivity (overall, +generated)", "overall_sens_synthetic"),
+        ("Specificity (overall, +generated)", "overall_spec_synthetic"),
+        ("Sensitivity (Dark, +generated)", "dark_sens_synthetic"),
+        ("Specificity (Dark, +generated)", "dark_spec_synthetic"),
+    ]
+    lines = [
+        r"\begin{table}[htbp]",
+        r"\centering",
+        r"\small",
+        rf"\caption{{Multi-seed robustness over seeds {', '.join(str(s) for s in seeds)} "
+        r"(full pipeline retrained per seed). Mean $\pm$ sample SD, with a seed-level "
+        r"percentile bootstrap 95\% CI.}",
+        r"\label{tab:multiseed}",
+        r"\begin{tabular}{lccc}",
+        r"\toprule",
+        r"\textbf{Metric} & Mean $\pm$ SD & 95\% CI & Seeds \\",
+        r"\midrule",
+    ]
+    for label, key in rows_spec:
+        a = agg.get(key)
+        if not a:
+            continue
+        ci = a.get("ci95")
+        ci_s = f"[{ci[0]:.3f}, {ci[1]:.3f}]" if ci else "---"
+        lines.append(
+            f"{label} & {a['mean']:.3f} $\\pm$ {a['sd']:.3f} & {ci_s} & {a.get('n_seeds', len(seeds))} \\\\"
+        )
+    lines += [
+        r"\bottomrule",
+        r"\end{tabular}",
+        r"\vspace{2pt}",
+        r"\footnotesize{AUROC is the primary comparison metric. These runs use the "
+        r"recomputed class ratio, so they are not a direct replica of the seed-42 "
+        r"headline configuration in Tables~\ref{tab:main_results}--\ref{tab:subgroup_auroc}.}",
+        r"\end{table}",
+    ]
+    path = os.path.join(TABLES_DIR, "tab9_multiseed.tex")
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
     print(f"  Wrote {path}")
@@ -354,6 +508,16 @@ def main():
     write_table5_training_config()
     write_table6_dataset(metrics)
     write_table7_provenance()
+    pw = load_pos_weight_arms()
+    if pw:
+        write_table8_pos_weight_arms(pw)
+    else:
+        print("  Skipped tab8 (no pos_weight_arms_summary.json yet)")
+    ms = load_multiseed()
+    if ms:
+        write_table9_multiseed(ms)
+    else:
+        print("  Skipped tab9 (no multiseed_summary.json yet)")
     print("Done.")
 
 

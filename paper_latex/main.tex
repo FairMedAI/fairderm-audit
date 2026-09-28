@@ -5,12 +5,14 @@
 \usepackage{amsmath,amssymb}
 \usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{array}
 \usepackage{hyperref}
 \usepackage{xcolor}
 \usepackage{caption}
 \usepackage{subcaption}
 \usepackage{enumitem}
 \usepackage{microtype}
+\setlength{\emergencystretch}{3em}
 \usepackage[T1]{fontenc}
 \usepackage{lmodern}
 
@@ -54,6 +56,8 @@
 \input{tables/tab5_training_config}
 \input{tables/tab6_dataset}
 \input{tables/tab7_provenance}
+\input{tables/tab8_pos_weight_arms}
+\IfFileExists{tables/tab9_multiseed.tex}{\input{tables/tab9_multiseed}}{}
 
 % --- References ---
 \bibliographystyle{plain}
