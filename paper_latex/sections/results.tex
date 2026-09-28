@@ -87,6 +87,10 @@ Table~\ref{tab:ablation} summarizes the ablation results. The ablation reuses th
 
 Figure~\ref{fig:ablation_tradeoff} presents the relationship between generated-image multiplier and performance across three metrics.
 
-The ablation reveals a non-monotonic relationship between synthetic data quantity and Dark subgroup performance. Dark AUROC was 0.5438, 0.5750, 0.5344, and 0.4812 at 0$\times$, 2$\times$, 5$\times$, and 10$\times$, respectively. Overall test AUROC was 0.6848, 0.7063, 0.6742, and 0.6433, while validation AUROC peaked at 2$\times$. This exploratory pattern requires multi-seed confirmation.
+Once the arms are matched on frozen layers and lesion coverage, generated-image quantity has essentially no effect on Dark AUROC. Dark AUROC was 0.5094, 0.5125, 0.5031, and 0.4969 at 0$\times$, 2$\times$, 5$\times$, and 10$\times$: a total spread of 0.016 across a 16-fold change in generated volume, which is well inside the bootstrap uncertainty of a 10-melanoma subgroup. Overall test AUROC is similarly flat (0.6669, 0.6677, 0.6580, 0.6610), as is validation AUROC (0.7571--0.7683).
 
-Subgroup-level metrics for ablation variants show that the 2$\times$ variant had the highest Dark AUROC in this seed-42 run, while the 10$\times$ variant was lowest. The result should not be interpreted as a stable optimal multiplier without multi-seed repetition.
+The one clear pattern is in the Light subgroup, which declines monotonically with generated volume: 0.7844, 0.7406, 0.7469, 0.6969. Adding dark-skin transforms therefore cost Light-subgroup discrimination across the whole range tested, without buying measurable Dark-subgroup discrimination in return.
+
+An earlier version of this ablation reported a pronounced non-monotonic pattern with a 2$\times$ peak at 0.575. That result came from arms that trained all 4{,}008{,}829 parameters while Stage 3 trains 2{,}744{,}861, and that drew the 2$\times$ and 5$\times$ variants from only 6 and 15 distinct lesions. Once the arms were matched, the peak disappeared. We report the corrected numbers because the earlier pattern was an artifact of the ablation's own configuration, not a property of generated-image quantity.
+
+The 0$\times$ arm is itself a 5-epoch continued-training run from the fine-tuned checkpoint, not the fine-tuned model, which is why its Dark AUROC (0.5094) differs from the fine-tuned stage (0.5469). Comparisons within Table~\ref{tab:ablation} are therefore internally consistent, but its 10$\times$ row should not be read as a replica of the headline Stage-3 result.

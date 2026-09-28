@@ -26,11 +26,11 @@ The results carry several implications for clinical deployment of melanoma detec
 
 The failure of simple photometric augmentation to improve Dark AUROC ($p\,{=}\,0.962$) suggests that the barrier to equitable melanoma detection is not merely data quantity but data quality and diversity. Even with a verified pipeline (290 train-only generated images, SHA256-verified zero overlap with held-out DDI images, and per-image perceptual provenance), color-space perturbations applied to 29 source images likely produce variants that lie within the same manifold as the originals, failing to expose the model to genuinely novel dark-skin melanoma presentations. More diverse generative models (e.g., conditional diffusion models trained on larger dark-skin datasets) may be necessary.
 
-The Light subgroup AUROC increase (0.756 $\rightarrow$ 0.772) with augmentation occurred alongside a Dark AUROC decrease (0.547 $\rightarrow$ 0.481), indicating that the modest synthetic data did not deliver a Dark-subgroup benefit. This underscores that augmentation interventions must be carefully validated across subgroups.
+The Light subgroup AUROC increase (0.756 $\rightarrow$ 0.772) with augmentation occurred alongside a Dark AUROC decrease (0.547 $\rightarrow$ 0.481), indicating that the modest addition of generated images did not deliver a Dark-subgroup benefit. This underscores that augmentation interventions must be carefully validated across subgroups.
 
 The wide bootstrap CIs---particularly for the Dark subgroup---indicate that the current evidence base is insufficient for definitive deployment decisions. Larger validation studies, ideally with prospective data from multiple institutions, are needed to establish confidence intervals narrow enough to support clinical deployment.
 
-The ablation results were non-monotonic: Dark AUROC peaked at 2$\times$ (0.575) and declined to 0.481 at 10$\times$. The 2$\times$ peak is exploratory and single-seed, so it does not establish an optimal multiplier or demonstrate a statistically reliable fairness improvement.
+The ablation is flat in the subgroup we were trying to help. With arms matched on frozen layers and on lesion coverage, Dark AUROC moves from 0.509 to 0.497 across a 16-fold increase in generated volume, a spread far inside the noise for a 10-melanoma subgroup, while Light AUROC falls monotonically from 0.784 to 0.697. Adding more transforms of the same 29 dark-skin lesions buys nothing measurable and costs the over-represented group.
 
 \subsection{Asymmetric Oversampling Confounder}
 

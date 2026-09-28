@@ -331,6 +331,37 @@ def run_seed(seed, ddi_df, ddi_img_dir, args, ham, results_root=None):
         return _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args, ham)
 
 
+def _may_reuse_baseline(args, seed, baseline_path, seed_dir, baseline_epochs):
+    """Decide whether an existing Stage-1 checkpoint may be loaded instead of retrained.
+
+    Reuse requires all three: the seed was explicitly named on --reuse-baseline, the
+    checkpoint file exists, and its training history records a full set of epochs. The
+    last condition matters because train_model writes the best-so-far checkpoint after
+    every improving epoch, so a run killed mid-training leaves a usable-looking file that
+    is silently under-trained.
+    """
+    allowed = getattr(args, "reuse_baseline", None) or []
+    if isinstance(allowed, bool):
+        allowed = [args.seeds[0]] if allowed else []
+    if seed not in allowed:
+        return False
+    if not os.path.exists(baseline_path):
+        print(f"  --reuse-baseline names seed {seed} but {os.path.basename(baseline_path)} "
+              f"does not exist; retraining Stage 1.")
+        return False
+    hist_path = os.path.join(seed_dir, "training_history.csv")
+    if not os.path.exists(hist_path):
+        print(f"  --reuse-baseline names seed {seed} but no training_history.csv exists; "
+              f"the checkpoint may be a partial run, so Stage 1 will be retrained.")
+        return False
+    recorded = len(pd.read_csv(hist_path))
+    if recorded < baseline_epochs:
+        print(f"  --reuse-baseline names seed {seed} but its history records {recorded} of "
+              f"{baseline_epochs} epochs; Stage 1 will be retrained.")
+        return False
+    return True
+
+
 def _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args, ham=None):
     t0 = time.time()
     set_seed(seed)
@@ -366,7 +397,7 @@ def _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args, ham=None):
     )
 
     baseline_path = os.path.join(seed_dir, f"fairderm_ham_baseline_seed{seed}.pth")
-    reuse = getattr(args, "reuse_baseline", False) and os.path.exists(baseline_path)
+    reuse = _may_reuse_baseline(args, seed, baseline_path, seed_dir, args.baseline_epochs)
     if reuse:
         print(f"\n[Stage 1: REUSING existing baseline for seed {seed}] -> {baseline_path}")
         baseline_model = create_model(pretrained=False)
@@ -482,8 +513,9 @@ def _run_seed(seed, ddi_df, ddi_img_dir, results_dir, args, ham=None):
               f"mean={delta['mean']:.4f} [{delta['lo']:.4f}, {delta['hi']:.4f}] "
               f"p_one_tail={delta['p_one_tail']:.4f}")
 
-    mps_note = ("MPS is non-deterministic: run-to-run AUROC for the same seed may vary by "
-                "approximately +/-0.01; the 5-seed mean +/- SD absorbs this noise.")
+    mps_note = ("MPS is non-deterministic, so repeated runs of an identical seed can differ; "
+                "the magnitude is measured by a dedicated seed-42 repeat rather than assumed. "
+                "The 5-seed mean +/- SD absorbs this noise.")
     metrics = {
         "seed": seed,
         "generated_by": "scripts/run_multiseed.py",
@@ -709,10 +741,11 @@ def main():
     parser.add_argument("--patience", type=int, default=3)
     parser.add_argument("--bootstrap", type=int, default=1000)
     parser.add_argument(
-        "--reuse-baseline", action="store_true",
-        help="Load an existing per-seed Stage-1 checkpoint instead of retraining it. "
-             "Excludes Stage-1 training variance from that seed; use for crash recovery "
-             "only, never for the reported multi-seed statistics.",
+        "--reuse-baseline", nargs="*", type=int, default=None, metavar="SEED",
+        help="Load the listed seeds' existing Stage-1 checkpoints instead of retraining "
+             "them. For crash recovery only: it excludes Stage-1 training variance from "
+             "those seeds, so never name a seed whose result is reported. A checkpoint is "
+             "only reused if its training history records a full epoch count.",
     )
     parser.add_argument(
         "--output-root", default=None,

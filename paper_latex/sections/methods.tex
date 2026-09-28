@@ -33,7 +33,7 @@ The \texttt{pos\_weight} applied in Stage 3 is the Stage-2 value $n_{\text{neg}}
 \paragraph{Hyperparameter standardization.}
 Stages 2 and 3 share learning rate, weight decay, batch size, frozen layers, and epoch budget, and differ in the added generated images and in the implied class ratio discussed above. The ablation arms (Section~\ref{sec:ablation}) hold all Stage-3 hyperparameters fixed and vary only the number of generated images. Stage 1 differs in learning rate and batch size but serves only as a pretrained initialization.
 
-\subsection{Synthetic Augmentation}
+\subsection{Generated-Image Augmentation}
 \label{sec:synthetic_aug}
 
 Our generated images are \emph{saved photometric and geometric transforms}, not samples from a generative model: we use the Albumentations library \cite{Buslaev2020} to apply fixed random transforms to existing training lesions, so no GAN or diffusion model is involved. From the dark-skin melanoma examples in the DDI \emph{training split} ($n\,{=}\,29$), each source image is transformed 10 times, yielding 290 generated images. We refer to these as \emph{generated} rather than \emph{synthetic} throughout, to avoid implying a generative model. Generated images derive exclusively from training-split data and never from validation or test images.

@@ -194,11 +194,16 @@ def write_table4_ablation(ablation_rows, metrics=None):
     lines = [
         r"\begin{table}[htbp]",
         r"\centering",
-        r"\caption{Ablation study: saved synthetic image multiplier on overall test set.}",
+        r"\caption{Ablation study: generated-image multiplier. All arms freeze the same "
+        r"layers as Stage~3 and draw variants round-robin across all 29 source lesions.}",
         r"\label{tab:ablation}",
-        r"\begin{tabular}{lcccccc}",
+        r"\footnotesize",
+        r"\resizebox{\textwidth}{!}{%",
+        r"\begin{tabular}{lccccccccc}",
         r"\toprule",
-        r"\textbf{Multiplier} & Val. AUROC & Test AUROC & Dark AUROC & Sens. & Spec. & F1 \\",
+        r"\textbf{Mult.} & \textbf{Imgs} & \textbf{Lesions} & \textbf{Val. AUROC} & "
+        r"\textbf{Test AUROC} & \textbf{Dark AUROC} & \textbf{Light AUROC} & "
+        r"\textbf{Sens.} & \textbf{Spec.} & \textbf{F1} \\",
         r"\midrule",
     ]
     for row in ablation_rows:
@@ -216,13 +221,24 @@ def write_table4_ablation(ablation_rows, metrics=None):
             except (ValueError, TypeError):
                 return str(v)
 
+        n_img = row.get("n_synth_used", "0")
+        n_src = row.get("n_distinct_sources", "0")
+        try:
+            n_img = f"{int(float(n_img))}"
+        except (ValueError, TypeError):
+            n_img = str(n_img)
+        try:
+            n_src = f"{int(float(n_src))}"
+        except (ValueError, TypeError):
+            n_src = str(n_src)
         lines.append(
-            f"{m}$\\times$ & {fmt(val_auroc)} & {fmt(test_auroc)} & {fmt(dark_auroc)} & "
+            f"{m}$\\times$ & {n_img} & {n_src} & {fmt(val_auroc)} & {fmt(test_auroc)} & "
+            f"{fmt(dark_auroc)} & {fmt(row.get('Light_auroc', 'N/A'))} & "
             f"{fmt(sens)} & {fmt(spec)} & {fmt(f1)} \\\\"
         )
     lines += [
         r"\bottomrule",
-        r"\end{tabular}",
+        r"\end{tabular}}",
     ]
     # Reconcile the largest multiplier with the main +Synthetic row. The two
     # numbers come from different epoch budgets and are expected to differ;

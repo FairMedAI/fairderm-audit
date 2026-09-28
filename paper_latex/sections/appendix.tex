@@ -10,7 +10,7 @@ All experiments were conducted under the following conditions to facilitate repr
     \item \textbf{Software environment:} The Python version, PyTorch version, and all dependency versions are pinned in \texttt{requirements.txt}. Exact versions: PyTorch 2.8.0, torchvision 0.23.0, numpy 2.0.2.
     \item \textbf{Checkpoint saving:} Model checkpoints were saved at the end of each training epoch and at validation-based best-model selection. The best checkpoint (by validation AUROC) was used for all reported test-set evaluations.
     \item \textbf{Data partitioning:} The DDI dataset was split into training, validation, and test sets using a stratified 60/20/20 split saved to \path{splits/ddi_split_seed42.json}. Split disjointness is enforced via assertions.
-    \item \textbf{Leakage verification:} Three independent checks. Split disjointness is enforced by assertions at split time. A byte-level SHA256 comparison of every generated image against every held-out image reports zero duplicates (\path{splits/leakage_report.json}). A per-image provenance pass additionally reports, for each of the 290 generated images, the matching training source and its hash, the nearest held-out image, and the descriptor margin between them, confirming that every generated image derives from a training image rather than a held-out one (\path{splits/synthetic_provenance_report.json}). The arm-study synthetic sets are checked against that seed's validation and test partitions by the same hash procedure.
+    \item \textbf{Leakage verification:} Three independent checks. Split disjointness is enforced by assertions at split time. A byte-level SHA256 comparison of every generated image against every held-out image reports zero duplicates (\path{splits/leakage_report.json}). A per-image provenance pass additionally reports, for each of the 290 generated images, the matching training source and its hash, the nearest held-out image, and the descriptor margin between them, confirming that every generated image derives from a training image rather than a held-out one (\path{splits/synthetic_provenance_report.json}). The arm-study generated sets are checked against that seed's validation and test partitions by the same hash procedure.
     \item \textbf{Metrics provenance:} All metrics, bootstrap CIs, and p-values are saved to \path{results/metrics_clean.json}, a verified copy of \path{results/metrics_seed42.json}. Tables and figures are auto-generated from this JSON file. No manual transcription from terminal output.
     \item \textbf{Hyperparameter standardization:} Stages 2 and 3 share learning rate, batch size, weight decay, frozen-layer configuration, and epoch budget, so the only differences are the added images and the class ratio they induce. That ratio is treated as an experimental factor and varied explicitly in the arm study rather than assumed constant. Configuration is in \path{configs/config.yaml}.
 \end{itemize}
@@ -21,11 +21,11 @@ Table~\ref{tab:provenance} documents the provenance of all reported metrics. All
 
 \subsection{Training Configuration Details}
 
-Table~\ref{tab:training_config} provides the complete training configuration for each model stage. Stages 2 and 3 share identical hyperparameters; the only difference is the dataset (DDI train vs DDI train + synthetic).
+Table~\ref{tab:training_config} provides the complete training configuration for each model stage. Stages 2 and 3 share learning rate, batch size, weight decay, frozen layers, and epoch budget; they differ in the dataset (DDI train vs DDI train $+$ generated) and in the class ratio that difference induces.
 
 \subsection{Additional Figures}
 
 \begin{itemize}
-    \item \textbf{Real vs.\ synthetic comparison} (\texttt{fig\_real\_vs\_synthetic.pdf}): Side-by-side visualization of 3 real dark-skin melanoma images from the training set and 3 synthetic variants, demonstrating augmentation quality.
+    \item \textbf{Real vs.\ generated comparison} (\texttt{fig\_real\_vs\_synthetic.pdf}): Side-by-side visualization of 3 real dark-skin melanoma images from the training set and 3 generated variants.
     \item \textbf{Supplementary ROC progression} (\texttt{supp\_roc\_progression.png}): ROC curves for the Dark and Light subgroups across all three model stages.
 \end{itemize}
