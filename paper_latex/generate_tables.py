@@ -54,28 +54,37 @@ def write_table1_main_results(metrics):
     lines = [
         r"\begin{table}[htbp]",
         r"\centering",
-        r"\caption{Main classification results across pipeline stages on the DDI test set ($n=132$).}",
+        r"\footnotesize",
+        r"\setlength{\tabcolsep}{4pt}",
+        r"\caption{Main classification results across pipeline stages on the DDI test set ($n=132$). "
+        r"Subgroup AUROCs include the Medium (Fitzpatrick III--IV) subgroup.}",
         r"\label{tab:main_results}",
-        r"\begin{tabular}{lcccccc}",
+        r"\resizebox{\textwidth}{!}{%",
+        r"\begin{tabular}{lccccccccc}",
         r"\toprule",
-        r"\textbf{Stage} & Val. AUROC & Test AUROC & Sens. & Spec. & F1 & $\Delta_{\text{AUROC}}$ \\",
+        r"\textbf{Stage} & Val. AUROC & Test AUROC & Sens. & Spec. & F1 "
+        r"& Light & Medium & Dark & $\Delta_{\text{AUROC}}$ \\",
         r"\midrule",
     ]
     for label, okey, skey in stage_order:
         s = stages.get(skey, {})
         o = overall.get(okey, {})
         l_auroc = s.get("Light", {}).get("auroc", 0)
+        m_auroc = s.get("Medium", {}).get("auroc", 0)
         d_auroc = s.get("Dark", {}).get("auroc", 0)
         gap = d_auroc - l_auroc
         val = val_aurocs.get(okey, 0)
         lines.append(
             f"{label} & {val:.4f} & {o.get('auroc', 0):.3f} & "
             f"{o.get('sensitivity', 0):.3f} & {o.get('specificity', 0):.3f} & "
-            f"{o.get('f1', 0):.3f} & {gap:+.3f} \\\\"
-        )
+            f"{o.get('f1', 0):.3f} & {l_auroc:.3f} & {m_auroc:.3f} & {d_auroc:.3f} & {gap:+.3f} \\\\")
     lines += [
         r"\bottomrule",
-        r"\end{tabular}",
+        r"\end{tabular}}",
+        r"\vspace{2pt}",
+        r"\footnotesize{$\Delta_{\text{AUROC}}$ is the Dark$-$Light gap; AUROC is the primary "
+        r"comparison metric, and threshold-dependent metrics use per-stage validation "
+        r"Youden thresholds (Table~\ref{tab:sensitivity}).}",
         r"\end{table}",
     ]
     path = os.path.join(TABLES_DIR, "tab1_main_results.tex")
@@ -457,55 +466,63 @@ def write_table8_pos_weight_arms(summary):
 
 
 def write_table9_multiseed(summary):
+    """Columnar multi-seed table: stages as rows, subgroups as columns.
+
+    Every cell is mean $\\pm$ SD (95\\% CI) at three decimals, read directly
+    from results/multiseed_summary.json aggregates.
+    """
     agg = summary.get("aggregates", {})
     seeds = summary.get("seeds_completed", [])
     if not agg:
         return
+
+    def cell(key):
+        a = agg.get(key)
+        if not a:
+            return "---"
+        ci = a.get("ci95")
+        ci_s = f"$[{ci[0]:.3f},\\,{ci[1]:.3f}]$" if ci else "---"
+        return f"${a['mean']:.3f}\\,\\pm\\,{a['sd']:.3f}$ ({ci_s})"
+
     rows_spec = [
-        ("Overall AUROC (fine-tuned)", "overall_finetuned"),
-        ("Overall AUROC (+generated)", "overall_synthetic"),
-        ("Light AUROC (+generated)", "light_synthetic"),
-        ("Medium AUROC (+generated)", "medium_synthetic"),
-        ("Dark AUROC (+generated)", "dark_synthetic"),
-        ("Dark$-$Light gap (+generated)", "gap_synthetic"),
-        ("Dark AUROC delta (gen. $-$ fine-tune)", "dark_delta"),
-        ("Sensitivity (overall, +generated)", "overall_sens_synthetic"),
-        ("Specificity (overall, +generated)", "overall_spec_synthetic"),
-        ("Sensitivity (Dark, +generated)", "dark_sens_synthetic"),
-        ("Specificity (Dark, +generated)", "dark_spec_synthetic"),
+        ("Overall AUROC", "overall_finetuned", "overall_synthetic"),
+        ("Light AUROC", "light_finetuned", "light_synthetic"),
+        ("Medium AUROC", "medium_finetuned", "medium_synthetic"),
+        ("Dark AUROC", "dark_finetuned", "dark_synthetic"),
+        ("Dark$-$Light gap", "gap_finetuned", "gap_synthetic"),
+        ("Sensitivity (overall)", "overall_sens_finetuned", "overall_sens_synthetic"),
+        ("Specificity (overall)", "overall_spec_finetuned", "overall_spec_synthetic"),
     ]
     lines = [
         r"\begin{table}[htbp]",
         r"\centering",
-        r"\small",
-        rf"\caption{{Multi-seed robustness over seeds {', '.join(str(s) for s in seeds)} "
-        r"(full pipeline retrained per seed). Mean $\pm$ sample SD, with a seed-level "
-        r"percentile bootstrap 95\% CI.}",
-        r"\label{tab:multiseed}",
-        r"\begin{tabular}{lccc}",
+        r"\footnotesize",
+        r"\setlength{\tabcolsep}{3pt}",
+        r"\resizebox{\textwidth}{!}{%",
+        r"\begin{tabular}{lcc}",
         r"\toprule",
-        r"\textbf{Metric} & Mean $\pm$ SD & 95\% CI & Seeds \\",
+        rf"\textbf{{Metric}} & \textbf{{Fine-tuned}} & \textbf{{+Generated}} \\[-1.2ex]",
+        rf" & \multicolumn{{2}}{{c}}{{Mean $\pm$ SD (seed-level 95\% CI), seeds "
+        rf"{', '.join(str(s) for s in seeds)}}} \\",
         r"\midrule",
     ]
-    for label, key in rows_spec:
-        a = agg.get(key)
-        if not a:
-            continue
-        ci = a.get("ci95")
-        ci_s = f"[{ci[0]:.3f}, {ci[1]:.3f}]" if ci else "---"
-        lines.append(
-            f"{label} & {a['mean']:.3f} $\\pm$ {a['sd']:.3f} & {ci_s} & {a.get('n_seeds', len(seeds))} \\\\"
-        )
+    for label, ft_key, sy_key in rows_spec:
+        lines.append(f"{label} & {cell(ft_key)} & {cell(sy_key)} \\\\")
+    dd = cell("dark_delta")
     lines += [
+        r"\midrule",
+        rf"\multicolumn{{3}}{{l}}{{Paired Dark AUROC delta (generated $-$ fine-tuned): {dd}}} \\",
         r"\bottomrule",
-        r"\end{tabular}",
+        r"\end{tabular}}",
         r"\vspace{2pt}",
-        r"\footnotesize{AUROC is the primary comparison metric. These runs use the "
-        r"recomputed class ratio, so they are not a direct replica of the seed-42 "
-        r"headline configuration in Tables~\ref{tab:main_results}--\ref{tab:subgroup_auroc}.}",
+        r"\footnotesize{Full pipeline retrained per seed (Stage-1 baseline included), "
+        r"with the split, generated images, and class ratio re-derived per seed, so "
+        r"these runs are not a direct replica of the seed-42 headline configuration "
+        r"in Tables~\ref{tab:main_results}--\ref{tab:subgroup_auroc}. Dark$-$Light "
+        r"gap is Dark AUROC $-$ Light AUROC. The paired-delta CI includes zero.}",
         r"\end{table}",
     ]
-    path = os.path.join(TABLES_DIR, "tab9_multiseed.tex")
+    path = os.path.join(TABLES_DIR, "tab_multiseed.tex")
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
     print(f"  Wrote {path}")

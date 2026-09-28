@@ -62,7 +62,7 @@ def load_training_history(stage):
 
 def fig1_val_auroc_comparison(metrics):
     val_aurocs = load_val_aurocs()
-    labels = ["Baseline", "Fine-tuned", "+Synthetic"]
+    labels = ["Baseline", "Fine-tuned", "+Generated"]
     keys = ["baseline", "finetune", "+synthetic"]
     vals = [val_aurocs[k] for k in keys]
 
@@ -216,13 +216,13 @@ def fig5_ablation(ablation_rows):
     ax1.bar(x + width, dark_aurocs, width, label="Dark Test AUROC",
             color="#ED7D31", alpha=0.7, edgecolor="black", linewidth=0.5)
 
-    ax1.set_xlabel("Synthetic Multiplier (x)", fontsize=10)
+    ax1.set_xlabel("Generated-Image Multiplier (x)", fontsize=10)
     ax1.set_ylabel("AUROC", fontsize=10)
     ax1.set_ylim(0.4, 1.0)
     ax1.set_xticks(x)
     ax1.set_xticklabels([f"{m}x" for m in multipliers])
     ax1.legend(loc="lower left", fontsize=8)
-    ax1.set_title("Ablation: Saved Synthetic Multiplier", fontsize=12)
+    ax1.set_title("Ablation: Saved Generated-Image Multiplier", fontsize=12)
     ax1.spines["top"].set_visible(False)
     ax1.spines["right"].set_visible(False)
     plt.tight_layout()
@@ -237,7 +237,7 @@ def fig6_training_curves():
     stage_configs = [
         ("Baseline", "baseline", "#4C72B0"),
         ("Fine-tuned", "finetune", "#55A868"),
-        ("+Synthetic", "augment", "#C44E52"),
+        ("+Generated", "augment", "#C44E52"),
     ]
     for ax, (label, stage, color) in zip(axes, stage_configs):
         hist = load_training_history(stage)

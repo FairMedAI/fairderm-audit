@@ -18,7 +18,7 @@ The pretrained baseline achieved an overall AUROC of 0.662 on the held-out test 
 
 Fine-tuning on the DDI training split reduced overall AUROC to 0.634 (Table~\ref{tab:main_results}). Light subgroup AUROC was 0.756 and Dark subgroup AUROC was 0.547, widening the inter-group gap from $-0.131$ to $-0.209$. This result shows that standard fine-tuning did not remove the observed disparity.
 
-The addition of generated augmentation yielded overall AUROC 0.639 and Dark subgroup AUROC 0.481. The Light--Dark gap widened to $-0.291$. The paired bootstrap comparison gave a Dark AUROC delta of $-0.066$ and $p=0.962$ (one-tailed directional, $H_1$: Dark improvement $>0$; $p$\,$=$\,proportion of bootstrap $\Delta \leq 0$). These findings indicate that simple photometric augmentation from 29 source images did not close the skin-tone performance gap.
+The addition of generated augmentation yielded overall AUROC 0.639 and Dark subgroup AUROC 0.481. The Light--Dark gap widened to $-0.291$. The paired bootstrap comparison gave a Dark AUROC delta of $-0.066$ and $p=0.962$ (one-tailed directional, $H_1$: Dark improvement $>0$; $p$\,$=$\,proportion of bootstrap $\Delta \leq 0$). These findings indicate that simple photometric augmentation from 29 source images did not close the skin-tone performance gap. Section~\ref{sec:multiseed_results} shows that this single-seed delta is one draw from a high-variance across-seed distribution, so we read it as directional rather than as an effect size.
 
 \subsection{Class-Imbalance Arm Study}
 \label{sec:pw_arms_results}
@@ -33,10 +33,18 @@ Balancing the generated-image composition and the weight together (101 generated
 
 The implication is that the degradation in the headline Stage-3 run is substantially attributable to generating malignant-only images for dark skin, not to augmentation as such. The intervention as originally specified confounds data quantity with class composition, and the headline number alone cannot distinguish the two.
 
-\subsection{Multi-Seed Robustness}
+\subsection{Five-Seed Robustness}
 \label{sec:multiseed_results}
 
-PLACEHOLDER\_MULTISEED\_TABLE
+Table~\ref{tab:multiseed} repeats the full pipeline across five seeds (42--46), retraining the Stage-1 baseline, re-deriving the stratified split, regenerating the images, and re-deriving every metric per seed. The means confirm the direction of the seed-42 story but not its magnitudes, and the seed-level variability is large relative to every between-stage difference the headline tables report.
+
+Across seeds, mean Dark AUROC is $0.575 \pm 0.145$ for the fine-tuned model and $0.604 \pm 0.152$ with generated augmentation; the paired Dark AUROC delta is $+0.028 \pm 0.038$, with a seed-level 95\% bootstrap interval of $[-0.001, 0.057]$ that includes zero. The Dark$-$Light gap is statistically indistinguishable between stages: $-0.081 \pm 0.193$ fine-tuned versus $-0.083 \pm 0.161$ with augmentation, each with a seed-level SD near 0.2 AUROC and an interval spanning roughly $\pm 0.2$ around the mean. The direction of individual seed gaps varies widely: seed 45 even shows a reversed gap ($+0.203$ fine-tuned), while seed 42 shows the widest gap ($-0.313$).
+
+Three readings follow. First, augmentation shows a small positive signed effect on Dark AUROC across seeds ($+0.028$), but the interval includes zero, so the five-seed study provides no statistically significant evidence of improvement -- the same conclusion as the seed-42 paired test, now with the uncertainty stated at the seed level. Second, the seed-42 headline delta ($-0.066$) is not representative: retrained per seed, the same pipeline produces deltas from $-0.010$ to $+0.073$ (Table~\ref{tab:multiseed} footnote in the repository summary), and the sign differs across seeds. Third, with Dark test subgroups of roughly 10 melanomas per seed, the between-seed SD of Dark AUROC (0.15) is an order of magnitude larger than the between-stage deltas being tested, so any single-seed comparison on this test set is fragile by construction.
+
+Overall AUROC is $0.644 \pm 0.033$ fine-tuned versus $0.658 \pm 0.063$ with augmentation, and overall sensitivity improves from $0.623 \pm 0.148$ to $0.709 \pm 0.118$ while specificity declines from $0.602 \pm 0.115$ to $0.540 \pm 0.086$ -- consistent with the augmented model's more inclusive (lower) operating threshold. Light AUROC rises from $0.656 \pm 0.106$ to $0.688 \pm 0.100$ and Medium AUROC is flat within noise ($0.698 \pm 0.076$ to $0.677 \pm 0.102$), so the small signed Dark improvement is not a redistribution away from the Light subgroup, though none of these differences are individually significant at five seeds.
+
+These runs use the recomputed class ratio rather than the static headline \texttt{pos\_weight}, so they are not a direct replica of the seed-42 configuration in Table~\ref{tab:main_results}. Their role is to quantify pipeline stability under resampling; given Dark AUROC SD $\approx 0.15$ and gap SD $\approx 0.19$, a multi-centre or multi-dataset evaluation, rather than more seeds on the same 656-image corpus, is what could narrow these intervals further.
 
 \subsection{Subgroup Analysis}
 \label{sec:subgroup_analysis}

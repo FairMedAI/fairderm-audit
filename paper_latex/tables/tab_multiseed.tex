@@ -1,0 +1,24 @@
+\begin{table}[htbp]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcc}
+\toprule
+\textbf{Metric} & \textbf{Fine-tuned} & \textbf{+Generated} \\[-1.2ex]
+ & \multicolumn{2}{c}{Mean $\pm$ SD (seed-level 95\% CI), seeds 42, 43, 44, 45, 46} \\
+\midrule
+Overall AUROC & $0.644\,\pm\,0.033$ ($[0.620,\,0.669]$) & $0.658\,\pm\,0.063$ ($[0.608,\,0.707]$) \\
+Light AUROC & $0.656\,\pm\,0.106$ ($[0.578,\,0.736]$) & $0.688\,\pm\,0.100$ ($[0.610,\,0.762]$) \\
+Medium AUROC & $0.698\,\pm\,0.076$ ($[0.633,\,0.752]$) & $0.677\,\pm\,0.102$ ($[0.598,\,0.757]$) \\
+Dark AUROC & $0.575\,\pm\,0.145$ ($[0.474,\,0.694]$) & $0.604\,\pm\,0.152$ ($[0.502,\,0.738]$) \\
+Dark$-$Light gap & $-0.081\,\pm\,0.193$ ($[-0.224,\,0.086]$) & $-0.083\,\pm\,0.161$ ($[-0.206,\,0.050]$) \\
+Sensitivity (overall) & $0.623\,\pm\,0.148$ ($[0.509,\,0.726]$) & $0.709\,\pm\,0.118$ ($[0.612,\,0.794]$) \\
+Specificity (overall) & $0.602\,\pm\,0.115$ ($[0.517,\,0.691]$) & $0.540\,\pm\,0.086$ ($[0.466,\,0.590]$) \\
+\midrule
+\multicolumn{3}{l}{Paired Dark AUROC delta (generated $-$ fine-tuned): $0.028\,\pm\,0.038$ ($[-0.001,\,0.058]$)} \\
+\bottomrule
+\end{tabular}}
+\vspace{2pt}
+\footnotesize{Full pipeline retrained per seed (Stage-1 baseline included), with the split, generated images, and class ratio re-derived per seed, so these runs are not a direct replica of the seed-42 headline configuration in Tables~\ref{tab:main_results}--\ref{tab:subgroup_auroc}. Dark$-$Light gap is Dark AUROC $-$ Light AUROC. The paired-delta CI includes zero.}
+\end{table}

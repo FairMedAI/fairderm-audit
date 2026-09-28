@@ -26,6 +26,6 @@ We ablate over the number of generated images, testing multipliers of 0$\times$ 
 
 Section~\ref{sec:pw_arms} defines three Stage-3 arms that share the fine-tuned checkpoint and differ only in \texttt{pos\_weight} and generated-image composition. The ablation varies quantity at a fixed weighting; this study varies the weighting at fixed checkpoint. Together they separate the two factors that the headline configuration changes simultaneously.
 
-\subsection{Multi-Seed Replication}
+\subsection{Five-Seed Replication}
 
 The 5-seed study regenerates the stratified DDI split, retrains all three stages, regenerates the 290 images with that seed's transform seed, and re-derives all metrics on that seed's test set. The Stage-1 baseline is retrained per seed so the reported standard deviation reflects the full pipeline rather than one fixed initialization.

@@ -75,6 +75,6 @@ For uncertainty quantification, bootstrap 95\% confidence intervals are computed
 
 Subgroup analysis stratifies predictions by Fitzpatrick skin type code: Light (code 12, Fitzpatrick I--II), Medium (code 34, Fitzpatrick III--IV), and Dark (code 56, Fitzpatrick V--VI). All three are reported. Because the test set contains 8 melanomas in the Medium subgroup versus 10 in each of Light and Dark, Medium estimates carry wider uncertainty and are interpreted as secondary. Given the small subgroup sizes ($n\,{=}\,42$--$48$, 8--10 melanomas), all subgroup conclusions should be treated as preliminary and directional.
 
-\subsection{Multi-Seed Robustness}
+\subsection{Five-Seed Robustness}
 
 Single-split results on 132 test images can move substantially under resampling, so we repeat the entire three-stage pipeline across 5 seeds (42--46). For each seed we regenerate the stratified DDI split, retrain the Stage-1 HAM10000 baseline, retrain Stages 2 and 3, regenerate the 290 generated images with that seed's transform seed, and re-derive all metrics on that seed's test set. We report the mean, sample standard deviation (ddof\,$=$\,1), and a seed-level percentile bootstrap 95\% confidence interval over the 5 seeds for each reported quantity. The Stage-1 baseline is retrained per seed rather than reused, so the reported variation reflects the full pipeline.
