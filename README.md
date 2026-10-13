@@ -1,194 +1,181 @@
-# FairDerm
+# FairDerm: Evaluating the Limits of Photometric Augmentation for Skin-Tone Bias
 
-Fixing skin-tone bias in melanoma detection using synthetic data augmentation for underrepresented dark-skin images.
+Simple photometric augmentation from 29 dark melanomas (290 images) does **not** close the skin-tone performance gap — this is a **negative-result methodology study**, not evidence of an AI improvement.
 
-## Project Overview
+---
 
-FairDerm is a three-stage pipeline that:
+## Abstract
 
-1. **Trains** an EfficientNet-B0 melanoma classifier on HAM10000 (predominantly light-skin)
-2. **Fine-tunes** on DDI (Diverse Dermatology Images) to adapt to diverse skin tones
-3. **Augments** with synthetic dark-skin melanoma images to improve fairness — **train-only, SHA256 verified 0 overlap**
+Dermatological deep learning models exhibit performance disparities across skin tones, with diagnostic accuracy often degrading for darker presentations. FairDerm audits this bias on the **Dermatology Data Initiative (DDI)** dataset (**656 images**, split **393 / 131 / 132**) and tests whether heuristic augmentation can mitigate it. The test partition is small and imbalanced — **42 Light (10 melanoma), 48 Medium (8 melanoma), 42 Dark (10 melanoma)** — so subgroup estimates are **low-power** (Dark AUROC bootstrap SD ~0.15) and **fragile**; results are directional, not definitive.
 
-An ablation study sweeps synthetic multipliers (0x/2x/5x/10x) to find the optimal trade-off between overall accuracy and dark-skin sensitivity.
+An **EfficientNet-B0** model is pretrained on **HAM10000 (7,818 mel/nv samples)** and fine-tuned on DDI, then augmented with **290 images generated from 29 training-split dark melanoma lesions (10× photometric/geometric transforms; no generative model)**. Provenance is verified per image: byte-level SHA256 confirms zero overlap with held-out partitions, and a perceptual check matches all 290 images to a training source (**median similarity 0.9985**, i.e. near-duplicates), with **no FID score and no clinician review** of realism.
 
-**Key finding:** Standard fine-tuning can *amplify* the AUROC gap (from **-0.131 to -0.209**), while adding train-only synthetic dark melanomas does not improve Dark AUROC (**gap -0.209 → -0.291**, paired delta **-0.066**, **p=0.962 NS**). This suggests we need GANs or diffusion models for real improvement.
+Seed-42 point estimates (Dark AUROC 0.547 → 0.481, paired delta −0.066, p=0.962) are **one draw from a high-variance distribution** and are confounded by class composition. Generating only malignant dark images while keeping the static `pos_weight` **2.8529** changes the effective training ratio from **102/291 to 392/291** (balanced = **0.7423**), over-weighting malignancy by **≈3.8×**. An arm study from a fixed checkpoint isolates this:
+
+| Arm | Composition | pos_weight | Dark AUROC | Light–Dark gap |
+|-----|-------------|-----------|-----------|----------------|
+| static (headline) | 290 dark melanomas | 2.8529 | **0.484** | −0.222 |
+| recomputed | same images | 0.7423 | **0.478** | −0.222 |
+| symmetric | +101 dark benigns | 1.0 | **0.550** | **−0.141** |
+
+Recomputing the weight changes nothing; **balancing composition recovers Dark AUROC to 0.550** (at the fine-tuned level, 0.547). The apparent degradation is largely a **class-composition artifact**, not an augmentation effect.
+
+Because single-split estimates proved unstable, the full pipeline was repeated across **5 seeds (42–46)**, re-deriving the split, generated images, and class ratio per seed: mean Dark AUROC **0.575 ± 0.145** (fine-tuned) → **0.604 ± 0.152** (+generated), paired delta **+0.028 (95% seed-level CI [−0.001, 0.057], not significant)**; the Light–Dark gap is **unchanged (−0.081 → −0.083)**. Thresholds are selected by Youden's J per stage from validation predictions, are **not directly comparable across stages**, and should not be over-interpreted; **AUROC is the primary metric**. All experiments are **DDI-only — no external validation** was performed, so generalizability is not demonstrated.
+
+---
+
+## Key Findings
+
+- **Low-Power.** The Dark test subgroup holds only 10 melanomas; bootstrap SD ~0.15 AUROC with wide CIs. Subgroup conclusions are preliminary and directional.
+- **No External Validation.** Every result is DDI-only (n=656). No independent dataset (e.g. Fitzpatrick17k, held-out HAM10000, clinical cohorts) was used; generalizability is untested.
+- **Composition Confound.** Augmenting only dark malignancies under a static `pos_weight` (2.8529) shifts the combined ratio 102/291 → 392/291 and over-weights malignancy ≈3.8×. The balanced arm (0.7423; +101 dark benigns at weight 1.0) recovers Dark AUROC 0.484 → 0.550 and narrows the gap −0.222 → −0.141.
+- **Limited Diversity.** 290 images are transforms of just 29 lesions (median similarity 0.9985 — near-duplicates); no FID, no LPIPS, no clinician review, no GAN/diffusion comparison. Semantic diversity is bounded by the source pool.
+- **Multi-Seed Primary.** Across 5 seeds the Dark delta is +0.028 (CI includes 0, NS) and the gap is unchanged; between-seed variability exceeds every between-stage difference and the gap sign flips across seeds. Seed-42 (p=0.962) is one unfavorable draw.
+- **Threshold Note.** Per-stage Youden-J thresholds are not comparable across stages; sensitivity/specificity/PPV are threshold-dependent. AUROC is the threshold-free primary comparison.
+
+---
 
 ## Repository Structure
 
 ```
 FairDerm/
-├── fairderm.py              # Complete pipeline (all stages)
-├── configs/config.yaml      # Single source of truth for hyperparams
-├── requirements.txt         # Pinned Python dependencies
-├── scripts/check_leakage.py # SHA256 byte-level leakage verification
-├── scripts/generate_clean_artifacts.py
-├── splits/                  # Saved train/val/test splits + leakage report
-│   ├── ddi_split_seed42.json
-│   └── leakage_report.json  # SHA256 0 overlap proof
-├── .gitignore
-├── FINAL_RESULTS.md         # Frozen results — source of truth for the paper
-├── website_update.md        # Plain-language site update
-├── README.md                # This file
-│
-├── paper_latex/             # Full LaTeX manuscript
+├── fairderm.py                  # Full pipeline: sanity/baseline/finetune/augment/evaluate/ablation
+├── configs/config.yaml          # Single source of truth for hyperparameters
+├── requirements.txt             # Pinned dependencies
+├── scripts/
+│   ├── verify_paper_numbers.py  # Asserts manuscript numbers match frozen JSON/CSV
+│   ├── check_leakage.py         # SHA256 byte-level leakage check
+│   ├── generate_clean_artifacts.py
+│   ├── verify_synthetic_provenance.py
+│   ├── run_multiseed.py         # 5-seed (42–46) robustness driver
+│   ├── run_pos_weight_arms.py   # static / recomputed / symmetric arm study
+│   ├── compare_mps_repeat.py
+│   └── validate_synthetic.py
+├── paper/
+│   ├── FAIRDERM.pdf             # Canonical paper (Rev 2, 22 pp)
+│   └── FairDerm_v2_Rev2.pdf     # Same build, versioned name
+├── FAIRDERM_fixed.pdf           # Newest paper build (identical to paper/ copies)
+├── paper_latex/                 # LaTeX source for the Rev 2 paper
 │   ├── main.tex
-│   ├── generate_tables.py   # Auto-generates .tex tables from metrics_clean.json
-│   ├── generate_figures.py  # Auto-generates PDF figures from metrics_clean.json
-│   ├── sections/            # Paper sections (.tex)
-│   ├── tables/              # Generated LaTeX tables
-│   └── figures/             # Generated PDF figures
-│
-├── models/                  # Final checkpoints
-│   ├── fairderm_ham_baseline.pth  # partial epoch-5 best val 0.9650
-│   ├── fairderm_ddi_finetuned.pth
-│   └── fairderm_final.pth
-│
-├── results/                 # Per-stage outputs
-│   ├── metrics_clean.json   # Canonical results (12:17) — all metrics + CIs
-│   ├── MORNING_VERIFY.md    # Light run verification
-│   ├── baseline/
-│   ├── finetune/
-│   ├── augment/
-│   ├── evaluate/
-│   └── ablation/
-│
-├── data/
-│   ├── ham10000/
-│   │   ├── HAM10000_metadata.csv
-│   │   └── images/          # 10,015 .jpg files
-│   └── synthetic_train_only/ # 290 generated images (29 train dark mel × 10) — train-only
-│
-└── ddidiversedermatologyimages/
-    ├── ddi_metadata.csv
-    └── *.png                # 656 DDI images
+│   ├── references.bib
+│   ├── generate_tables.py       # Frozen JSON/CSV -> tables/*.tex
+│   ├── generate_figures.py      # Frozen JSON/CSV -> figures/*.pdf
+│   ├── sections/                # abstract, introduction, methods, experiments,
+│   │                            # results, discussion, limitations, appendix
+│   ├── tables/                  # tab1..tab8 + tab_multiseed
+│   └── figures/                 # fig1..fig6 + supplementary
+├── models/                      # Checkpoints (baseline, finetuned, final, ablation_*)
+├── results/                     # Frozen metrics, CIs, p-values, per-seed runs
+│   ├── metrics_clean.json       # Canonical machine-readable results
+│   ├── metrics_seed42.json
+│   ├── multiseed_summary.json
+│   ├── ablation/
+│   └── pos_weight_arms/
+├── splits/                      # Train/val/test splits + leakage + provenance reports
+│   ├── ddi_split_seed42.json … ddi_split_seed46.json
+│   ├── leakage_report.json
+│   └── synthetic_provenance_report.json
+├── FINAL_RESULTS.md             # Frozen results + experiment metadata
+├── RESEARCH_AUDIT.md            # Methodology strengths/weaknesses audit
+├── SUBMISSION_GUIDE.md          # Compile/format instructions per venue
+├── PRE_SUBMISSION_CHECKLIST.md
+└── LICENSE                      # Apache License 2.0
 ```
 
-## Environment Setup
+**Data is not committed** (large files, see `.gitignore`). To reproduce, place:
+- `data/ham10000/` — `HAM10000_metadata.csv` + `images/` (10,015 `.jpg`)
+- `ddidiversedermatologyimages/` — `ddi_metadata.csv` + 656 `.png`
+
+---
+
+## How to Reproduce
 
 ```bash
-# 1. Create virtual environment (Python 3.9+)
-python3 -m venv fairderm_env
-source fairderm_env/bin/activate
-
-# 2. Install dependencies (exact versions pinned)
+# 1. Install pinned dependencies (Python 3.9+)
 pip install -r requirements.txt
+
+# 2. Verify every number quoted in the manuscript against the frozen artifacts
+python scripts/verify_paper_numbers.py   # must print "All checked manuscript numbers match"
+
+# 3. (optional) Re-verify no synthetic leakage
+python scripts/check_leakage.py          # must report overlap 0
 ```
 
-## Data Placement
-
-### HAM10000
-
-Download from [ISIC Archive](https://www.isic-archive.com/) or [Harvard Dataverse](https://dataverse.harvard.edu/). Place files so the structure is:
-
-```
-data/ham10000/
-├── HAM10000_metadata.csv
-└── images/
-    ├── ISIC_0026046.jpg
-    ├── ISIC_0026047.jpg
-    └── ...  (10,015 .jpg files)
-```
-
-### DDI (Diverse Dermatology Images)
-
-Download from the [DDI repository](https://github.com/mattgroh/fitzpatrick-scale). Place the extracted folder in the project root:
-
-```
-ddidiversedermatologyimages/
-├── ddi_metadata.csv
-├── 000001.png
-├── 000002.png
-└── ...  (656 .png files)
-```
-
-## Running the Pipeline
-
-Each stage runs independently via CLI. Run stages in order for a full experiment, or individually for debugging.
+Full pipeline (requires the datasets above; **no retraining needed** to inspect the shipped results):
 
 ```bash
-# 0. Sanity check — verify imports, data, device, forward pass
 python fairderm.py --stage sanity
-
-# 1. HAM10000 baseline training (~40 min on MPS, batch 32, 15 epochs)
 python fairderm.py --stage baseline
-
-# 2. DDI fine-tuning (~5 min)
 python fairderm.py --stage finetune
-
-# 3. Synthetic augmentation + retraining (~5 min)
-#    - Generates 290 synthetic images from TRAIN dark melanomas only (29 × 10)
-#    - Never touches val/test data — SHA256 verified
 python fairderm.py --stage augment
-
-# 4. Fairness audit + plots + metrics_clean.json (~2 min)
 python fairderm.py --stage evaluate
-
-# 5. Ablation study — 0x/2x/5x/10x multipliers (~20 min total)
 python fairderm.py --stage ablation
-
-# 6. Verify no leakage (SHA256 byte-level)
-python scripts/check_leakage.py
-
-# 7. Auto-generate LaTeX tables and figures from metrics_clean.json
-python paper_latex/generate_tables.py
-python paper_latex/generate_figures.py
 ```
 
-### Light clean run (25 min, crash-recovered, what paper currently uses)
+Regenerate paper assets from frozen data (no inference):
+
 ```bash
-# Uses existing baseline checkpoint (partial epoch-5, best val 0.9650)
-nice -n 19 python fairderm.py --stage finetune --batch-size 16 --epochs 10
-nice -n 19 python fairderm.py --stage augment --batch-size 16 --epochs 10
-python fairderm.py --stage evaluate
-python scripts/generate_clean_artifacts.py
-python scripts/check_leakage.py  # must say PASSED overlap 0
+python paper_latex/generate_tables.py    # -> paper_latex/tables/*.tex
+python paper_latex/generate_figures.py   # -> paper_latex/figures/*.pdf
 ```
 
-## Reproducibility Checklist
+Compile the paper (needs LaTeX, or use Overleaf with `paper_latex/main.tex` as the root):
 
-- **Seed:** 42 (all stages)
-- **Device:** MPS (Apple Silicon) preferred; falls back to CUDA then CPU
+```bash
+cd paper_latex
+pdflatex main.tex && bibtex main && pdflatex main.tex && pdflatex main.tex
+```
+
+---
+
+## Reproducibility
+
+- **Seed:** 42 (primary single-split); **multi-seed** 42–46
+- **Device:** MPS (Apple Silicon); falls back to CUDA then CPU
 - **Key versions:** PyTorch 2.8.0, torchvision 0.23.0, numpy 2.0.2, Python 3.9.6
-- **Split saved:** `splits/ddi_split_seed42.json` with filenames per partition
-- **Leakage check:** `splits/leakage_report.json` — SHA256 byte-level, synthetic_vs_test=0, synthetic_vs_val=0, synthetic_vs_any_ddi=0
-- **Metrics saved:** `results/metrics_clean.json` (Sep 20 controlled seed-42 run) with all metrics, CIs, p-values + `MORNING_VERIFY.md`
-- **Tables auto-generated:** `python paper_latex/generate_tables.py` reads from metrics_clean.json
-- **Figures auto-generated:** `python paper_latex/generate_figures.py` reads from metrics_clean.json
-- **Config as code:** `configs/config.yaml` is single source of truth for hyperparams
-- **Checkpoint caveat:** Current baseline is partial (best val epoch 5, AUROC 0.9650) — full 15-epoch run pending overnight for final paper
+- **Splits:** `splits/ddi_split_seed{42..46}.json`
+- **Leakage:** `splits/leakage_report.json` — byte-level SHA256, zero overlap
+- **Provenance:** `splits/synthetic_provenance_report.json` — per-image, all 290 match a training source
+- **Config as code:** `configs/config.yaml`
 
-## MPS Non-Determinism Warning
+> **MPS non-determinism:** the MPS backend can produce small floating-point differences across runs. Exact reproduction on CUDA/CPU is not guaranteed.
 
-All experiments use Apple Silicon (MPS backend). The MPS backend introduces floating-point non-determinism in certain operations. Exact numerical reproduction on different hardware (CUDA, CPU) is not guaranteed. Results should be replicated on at least one other hardware platform for confirmation.
+---
 
-## Results — Controlled Seed-42 Run (leakage 0, n=132 test: 42 Light / 42 Dark, 10 mel each)
+## Limitations
 
-See [`FINAL_RESULTS.md`](FINAL_RESULTS.md) for the frozen source of truth. See [`results/metrics_clean.json`](results/metrics_clean.json) for machine-readable results with bootstrap CIs and p-values.
+- **Statistical power.** Dark test n=42 with ~10 melanomas; bootstrap SD ~0.15 and gap SD ~0.19. Single-split comparisons are fragile by construction.
+- **No external validation.** DDI-only (n=656); no cross-dataset or multi-centre evaluation.
+- **Confounded headline contrast.** The Stage 2→3 comparison does not isolate augmentation — it changes class composition and weighting (quantified in the arm study).
+- **Augmentation realism & diversity.** 290 near-duplicate transforms of 29 lesions; no FID/LPIPS, no clinician review, no generative baseline.
+- **Threshold dependence.** Sensitivity/specificity/PPV depend on per-stage validation Youden-J thresholds; AUROC is primary.
 
-**Current controlled run (Sep 20, seed 42):**
+---
 
-| Stage | Light AUROC | Dark AUROC | Gap | Overall |
-|-------|-------------|------------|-----|---------|
-| Baseline (partial) | 0.7188 | 0.5875 | -0.1313 | 0.6622 |
-| Fine-tuned | 0.7563 | 0.5469 [0.341–0.750] | -0.2094 | 0.6336 |
-| +Synthetic (290) | 0.7719 [0.582–0.925] | 0.4813 [0.276–0.688] | -0.2906 | 0.6395 |
+## Changelog
 
-Paired Dark AUROC delta finetuned→augment: **-0.066 (95% bootstrap CI [-0.151, 0.008]), p=0.962 NS**
+### v2 — October 12, 2026
+- Reframed as a **negative/limits study**; multi-seed (42–46) aggregation is now the primary result.
+- Added the **class-composition confound** analysis and the **static / recomputed / symmetric** `pos_weight` arm study.
+- Re-analyzed the **ablation** (matched frozen layers and lesion coverage): generated-image quantity has no measurable Dark AUROC effect; Light AUROC declines.
+- Added **per-image synthetic provenance** verification (perceptual + SHA256).
+- Addressed 6 reviewer points in the manuscript text (power, external validation, composition confound, diversity/realism, multi-seed variability, thresholding) and corrected the ablation figure.
 
-Key findings:
-- **Fine-tuning amplifies bias:** AUROC gap widens from **-0.131 to -0.209**
-- **Synthetic augmentation does not improve Dark AUROC:** gap **-0.209 → -0.291**, Dark 0.547→0.481 (paired delta **-0.066**, p=0.962 NS)
-- **Dark AUROC CIs huge:** finetuned 0.547 [0.341–0.750] → final 0.481 [0.276–0.688] with only 10 melanomas per subgroup
-- **Ablation:** Dark AUROC peaks at 2x (0.575), degrades at 10x (0.481), non-monotonic single-seed pattern
+---
 
 ## Citation
 
 ```bibtex
 @article{fairderm2026,
-  title={FairDerm: Evaluating and Mitigating Skin-Tone Bias in Melanoma Detection via Synthetic Augmentation},
+  title={FairDerm: Evaluating the Limits of Photometric Augmentation for Skin-Tone Bias in Melanoma Detection},
   author={Gottimukkala, Shanmuka},
   year={2026},
-  note={Working Paper #1, FairMed AI — leakage-free audit, SHA256 verified, gap -0.131→-0.209→-0.291, Dark 0.547→0.481 p=0.962}
+  note={Working Paper #1, FairMed AI — leakage-free audit, SHA256 verified; negative-result study}
 }
 ```
+
+---
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE).
