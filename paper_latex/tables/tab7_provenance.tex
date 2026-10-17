@@ -5,22 +5,22 @@
 \caption{Metrics provenance: source files and method for each reported value.}
 \label{tab:provenance}
 \resizebox{\textwidth}{!}{%
-\begin{tabular}{>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{4.9cm}>{\raggedright\arraybackslash}p{1.8cm}>{\raggedright\arraybackslash}p{1.5cm}>{\raggedright\arraybackslash}p{1.4cm}}
+\begin{tabular}{>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{4.9cm}>{\raggedright\arraybackslash}p{1.8cm}>{\raggedright\arraybackslash}p{1.5cm}>{\raggedright\arraybackslash}p{1.8cm}}
 \toprule
 \textbf{Metric} & \textbf{Source File} & \textbf{Method} & \textbf{Literal?} & \textbf{Checked?} \\
 \midrule
-Overall test AUROC/Sens/Spec/F1 & \texttt{metrics\_clean.json} & code & No & Yes \\
-Subgroup AUROC/Sens/Spec/PPV & \texttt{metrics\_clean.json} & code & No & Yes \\
-Bootstrap 95\% CIs & \texttt{metrics\_clean.json} & code & No & Yes \\
-p-value (Dark improvement) & \texttt{metrics\_clean.json} & code & No & Yes \\
-Ablation overall + subgroup & \texttt{ablation\_report.csv} & code & No & Yes \\
-Arm-study AUROC/Sens/Spec & \texttt{pos\_weight\_arms\_summary.json} & code & No & Yes \\
-Multi-seed mean, SD, CI & \texttt{multiseed\_summary.json} & code & No & Yes \\
-Val AUROCs & \texttt{config.json} & code & No & Yes \\
-Thresholds & \texttt{metrics\_clean.json} & Youden's J (val set) & No & Yes \\
-Split disjointness & \texttt{ddi\_split\_seed42.json} & assertion check & No & Yes \\
-Leakage (0 gen--test dupes) & \texttt{leakage\_report.json} & SHA256 dedup & No & Yes \\
-Gen. image provenance & \texttt{synthetic\_provenance\_report.json} & hash $+$ descriptor & No & Yes \\
+Overall test AUROC/\allowbreak Sens/\allowbreak Spec/\allowbreak F1 & \nolinkurl{metrics_clean.json} & code & No & Yes \\
+Subgroup AUROC/\allowbreak Sens/\allowbreak Spec/\allowbreak PPV & \nolinkurl{metrics_clean.json} & code & No & Yes \\
+Bootstrap 95\% CIs & \nolinkurl{metrics_clean.json} & code & No & Yes \\
+p-value (Dark improvement) & \nolinkurl{metrics_clean.json} & code & No & Yes \\
+Ablation overall + subgroup & \nolinkurl{ablation_report.csv} & code & No & Yes \\
+Arm-study AUROC/\allowbreak Sens/\allowbreak Spec & \nolinkurl{pos_weight_arms_summary.json} & code & No & Yes \\
+Multi-seed mean, SD, CI & \nolinkurl{multiseed_summary.json} & code & No & Yes \\
+Val AUROCs & \nolinkurl{config.json} & code & No & Yes \\
+Thresholds & \nolinkurl{metrics_clean.json} & Youden's J (val set) & No & Yes \\
+Split disjointness & \nolinkurl{ddi_split_seed42.json} & assertion check & No & Yes \\
+Leakage (0 gen--test dupes) & \nolinkurl{leakage_report.json} & SHA256 dedup & No & Yes \\
+Gen. image provenance & \nolinkurl{synthetic_provenance_report.json} & hash $+$ descriptor & No & Yes \\
 \bottomrule
 \end{tabular}}
 \vspace{2pt}

@@ -56,7 +56,9 @@ def write_table1_main_results(metrics):
         r"\centering",
         r"\footnotesize",
         r"\setlength{\tabcolsep}{4pt}",
-        r"\caption{Main classification results across pipeline stages on the DDI test set ($n=132$). "
+        r"\caption{Main classification results across pipeline stages on the DDI test set (seed-42, $n=132$). "
+        r"Primary claims are based on the 5-seed aggregation in Table~\ref{tab:multiseed}; "
+        r"seed-42 results are provided for completeness only. "
         r"Subgroup AUROCs include the Medium (Fitzpatrick III--IV) subgroup.}",
         r"\label{tab:main_results}",
         r"\resizebox{\textwidth}{!}{%",
@@ -104,6 +106,7 @@ def write_table2_subgroup_results(metrics):
         r"\setlength{\tabcolsep}{4pt}",
         r"\caption{Subgroup AUROC with 95\% bootstrap confidence intervals (1000 iterations).}",
         r"\label{tab:subgroup_auroc}",
+        r"\resizebox{\textwidth}{!}{%",
         r"\begin{tabular}{lccccccc}",
         r"\toprule",
         r"\textbf{Stage} & \textbf{Light} & \textbf{Medium} & \textbf{Dark} & \textbf{Gap} "
@@ -140,7 +143,7 @@ def write_table2_subgroup_results(metrics):
     # Add footnote about threshold differences
     lines += [
         r"\bottomrule",
-        r"\end{tabular}",
+        r"\end{tabular}}",
         r"\vspace{2pt}",
         r"\small{$^*$ Thresholds differ per stage; AUROC is the primary comparison metric.}",
         r"\end{table}",
@@ -158,10 +161,14 @@ def write_table3_sensitivity(metrics):
         r"\centering",
         r"\footnotesize",
         r"\setlength{\tabcolsep}{4pt}",
-        r"\caption{Sensitivity, specificity, and PPV by skin-tone subgroup.}",
+        r"\caption{Sensitivity, specificity, and PPV by skin-tone subgroup (seed-42). "
+        r"Thresholds differ per stage (Youden's J on validation); AUROC is the primary "
+        r"comparison metric. Threshold-dependent values are not directly comparable across stages.}",
         r"\label{tab:sensitivity}",
         r"\begin{tabular}{lcccccccc}",
         r"\toprule",
+        r" & \multicolumn{4}{c}{\textbf{Sensitivity}} & \multicolumn{3}{c}{\textbf{Specificity}} & \\",
+        r"\cmidrule(lr){2-5}\cmidrule(lr){6-8}",
         r"\textbf{Stage} & \textbf{Light} & \textbf{Medium} & \textbf{Dark} & \textbf{Gap} "
         r"& \textbf{Light} & \textbf{Medium} & \textbf{Dark} & \textbf{PPV} \\",
         r"\midrule",
@@ -293,7 +300,7 @@ def write_table5_training_config():
         r"\label{tab:training_config}",
         r"\begin{tabular}{lcccccc}",
         r"\toprule",
-        r"\textbf{Stage} & LR & Epochs & Batch & pos\_wt & $\lambda$ & Early Stop \\",
+        r"\textbf{Stage} & LR & Epochs & Batch & pos\_wt & Weight Decay & Early Stop \\",
         r"\midrule",
     ]
     stage_order = ["baseline", "finetune", "augment"]
@@ -363,22 +370,22 @@ def write_table7_provenance():
         r">{\raggedright\arraybackslash}p{4.9cm}"
         r">{\raggedright\arraybackslash}p{1.8cm}"
         r">{\raggedright\arraybackslash}p{1.5cm}"
-        r">{\raggedright\arraybackslash}p{1.4cm}}",
+        r">{\raggedright\arraybackslash}p{1.8cm}}",
         r"\toprule",
         r"\textbf{Metric} & \textbf{Source File} & \textbf{Method} & \textbf{Literal?} & \textbf{Checked?} \\",
         r"\midrule",
-        r"Overall test AUROC/Sens/Spec/F1 & \texttt{metrics\_clean.json} & code & No & Yes \\",
-        r"Subgroup AUROC/Sens/Spec/PPV & \texttt{metrics\_clean.json} & code & No & Yes \\",
-        r"Bootstrap 95\% CIs & \texttt{metrics\_clean.json} & code & No & Yes \\",
-        r"p-value (Dark improvement) & \texttt{metrics\_clean.json} & code & No & Yes \\",
-        r"Ablation overall + subgroup & \texttt{ablation\_report.csv} & code & No & Yes \\",
-        r"Arm-study AUROC/Sens/Spec & \texttt{pos\_weight\_arms\_summary.json} & code & No & Yes \\",
-        r"Multi-seed mean, SD, CI & \texttt{multiseed\_summary.json} & code & No & Yes \\",
-        r"Val AUROCs & \texttt{config.json} & code & No & Yes \\",
-        r"Thresholds & \texttt{metrics\_clean.json} & Youden's J (val set) & No & Yes \\",
-        r"Split disjointness & \texttt{ddi\_split\_seed42.json} & assertion check & No & Yes \\",
-        r"Leakage (0 gen--test dupes) & \texttt{leakage\_report.json} & SHA256 dedup & No & Yes \\",
-        r"Gen. image provenance & \texttt{synthetic\_provenance\_report.json} & hash $+$ descriptor & No & Yes \\",
+        r"Overall test AUROC/\allowbreak Sens/\allowbreak Spec/\allowbreak F1 & \nolinkurl{metrics_clean.json} & code & No & Yes \\",
+        r"Subgroup AUROC/\allowbreak Sens/\allowbreak Spec/\allowbreak PPV & \nolinkurl{metrics_clean.json} & code & No & Yes \\",
+        r"Bootstrap 95\% CIs & \nolinkurl{metrics_clean.json} & code & No & Yes \\",
+        r"p-value (Dark improvement) & \nolinkurl{metrics_clean.json} & code & No & Yes \\",
+        r"Ablation overall + subgroup & \nolinkurl{ablation_report.csv} & code & No & Yes \\",
+        r"Arm-study AUROC/\allowbreak Sens/\allowbreak Spec & \nolinkurl{pos_weight_arms_summary.json} & code & No & Yes \\",
+        r"Multi-seed mean, SD, CI & \nolinkurl{multiseed_summary.json} & code & No & Yes \\",
+        r"Val AUROCs & \nolinkurl{config.json} & code & No & Yes \\",
+        r"Thresholds & \nolinkurl{metrics_clean.json} & Youden's J (val set) & No & Yes \\",
+        r"Split disjointness & \nolinkurl{ddi_split_seed42.json} & assertion check & No & Yes \\",
+        r"Leakage (0 gen--test dupes) & \nolinkurl{leakage_report.json} & SHA256 dedup & No & Yes \\",
+        r"Gen. image provenance & \nolinkurl{synthetic_provenance_report.json} & hash $+$ descriptor & No & Yes \\",
         r"\bottomrule",
         r"\end{tabular}}",
         r"\vspace{2pt}",
@@ -426,6 +433,7 @@ def write_table8_pos_weight_arms(summary):
         r"fine-tuned checkpoint and differ only in \texttt{pos\_weight} and generated-image "
         r"composition.}",
         r"\label{tab:pw_arms}",
+        r"\resizebox{\textwidth}{!}{%",
         r"\begin{tabular}{lccccccc}",
         r"\toprule",
         r"\textbf{Arm} & \texttt{pos\_weight} & Combined & Light & Medium & Dark & Gap "
@@ -450,7 +458,7 @@ def write_table8_pos_weight_arms(summary):
         )
     lines += [
         r"\bottomrule",
-        r"\end{tabular}",
+        r"\end{tabular}}",
         r"\vspace{2pt}",
         r"\footnotesize{Combined = malignant/benign counts presented to the loss. "
         r"The static arm retains the pre-augmentation ratio and is the configuration "
@@ -498,6 +506,10 @@ def write_table9_multiseed(summary):
         r"\centering",
         r"\footnotesize",
         r"\setlength{\tabcolsep}{3pt}",
+        r"\caption{Five-seed robustness study (seeds 42--46). Each cell reports mean $\pm$ SD "
+        r"with the seed-level 95\% confidence interval under full per-seed pipeline retraining, "
+        r"with the split, generated images, and class ratio re-derived per seed.}",
+        r"\label{tab:multiseed}",
         r"\resizebox{\textwidth}{!}{%",
         r"\begin{tabular}{lcc}",
         r"\toprule",
@@ -515,11 +527,12 @@ def write_table9_multiseed(summary):
         r"\bottomrule",
         r"\end{tabular}}",
         r"\vspace{2pt}",
-        r"\footnotesize{Full pipeline retrained per seed (Stage-1 baseline included), "
-        r"with the split, generated images, and class ratio re-derived per seed, so "
-        r"these runs are not a direct replica of the seed-42 headline configuration "
-        r"in Tables~\ref{tab:main_results}--\ref{tab:subgroup_auroc}. Dark$-$Light "
-        r"gap is Dark AUROC $-$ Light AUROC. The paired-delta CI includes zero.}",
+        r"\footnotesize{Full pipeline retrained per seed (42--46, Stage-1 baseline included); "
+        r"split, generated images, and class ratio re-derived per seed. Multi-seed "
+        r"aggregation is primary; seed-42 tables are for completeness only and not "
+        r"expected to coincide. Dark$-$Light gap is Dark AUROC $-$ Light AUROC. "
+        r"The paired-delta CI includes zero ($+0.028$, [-0.001,0.057]); gap sign flips "
+        r"across seeds. Between-seed variability exceeds between-stage effects.}",
         r"\end{table}",
     ]
     path = os.path.join(TABLES_DIR, "tab_multiseed.tex")

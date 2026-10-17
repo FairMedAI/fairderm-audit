@@ -4,6 +4,7 @@
 \setlength{\tabcolsep}{4pt}
 \caption{Stage-3 class-imbalance arm study. All arms start from the same seed-42 fine-tuned checkpoint and differ only in \texttt{pos\_weight} and generated-image composition.}
 \label{tab:pw_arms}
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{lccccccc}
 \toprule
 \textbf{Arm} & \texttt{pos\_weight} & Combined & Light & Medium & Dark & Gap & Overall \\
@@ -12,7 +13,7 @@ static (headline) & 2.8529 & 392/291 & 0.7063 & 0.7111 & 0.4844 & -0.2219 & 0.64
 recomputed & 0.7423 & 392/291 & 0.7000 & 0.7091 & 0.4781 & -0.2219 & 0.6371 \\
 symmetric & 1.0000 & 392/392 & 0.6906 & 0.7717 & 0.5500 & -0.1406 & 0.6680 \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
 \vspace{2pt}
 \footnotesize{Combined = malignant/benign counts presented to the loss. The static arm retains the pre-augmentation ratio and is the configuration behind the headline result. Arms were re-run with the seeded, reproducible image generator, so the static arm reproduces the headline overall AUROC (0.640 vs.\ 0.639) but not every subgroup value exactly.}
 \end{table}

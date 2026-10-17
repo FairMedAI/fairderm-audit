@@ -7,6 +7,9 @@
 \usepackage{booktabs}
 \usepackage{array}
 \usepackage{hyperref}
+\usepackage{xurl}
+\usepackage{authblk}
+\usepackage{orcidlink}
 \usepackage{xcolor}
 \usepackage{caption}
 \usepackage{subcaption}
@@ -27,9 +30,11 @@
 % --- Title ---
 \title{FairDerm: Evaluating the Limits of Photometric Augmentation for Skin-Tone Bias in Melanoma Detection}
 
-\author{%
-  Shanmuka Gottimukkala\thanks{Milton High School}
-}
+\author[1,*]{Shanmuka Gottimukkala}
+\author[2]{Dr. Vaibhav C. Gandhi \orcidlink{0000-0001-8454-3093}}
+\affil[1]{Milton High School, 13025 Birmingham Highway, Milton, GA 30004, USA}
+\affil[2]{Department of Computer Engineering, Madhuben and Bhanubhai Patel Institute of Technology (MBIT), The Charutar Vidya Mandal (CVM) University, Gujarat, India}
+\affil[*]{Corresponding author: only.shan@outlook.com}
 
 \date{September 2026}
 
@@ -58,6 +63,9 @@
 \input{tables/tab7_provenance}
 \input{tables/tab8_pos_weight_arms}
 \IfFileExists{tables/tab_multiseed.tex}{\input{tables/tab_multiseed}}{}
+
+% --- Declarations ---
+\input{sections/declarations}
 
 % --- References ---
 \bibliographystyle{plain}
