@@ -54,7 +54,7 @@ FairDerm/
 ├── paper/
 │   ├── FAIRDERM.pdf             # Canonical paper (Rev 2, 22 pp)
 │   └── FairDerm_v2_Rev2.pdf     # Same build, versioned name
-├── FAIRDERM_fixed.pdf           # Newest paper build (identical to paper/ copies)
+├── FairDerm_Final_Paper.pdf     # Newest paper build (identical to paper/ copies)
 ├── paper_latex/                 # LaTeX source for the Rev 2 paper
 │   ├── main.tex
 │   ├── references.bib
